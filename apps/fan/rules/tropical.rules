@@ -1,0 +1,338 @@
+# user_function face_approach(Vector, @){
+#    # We do this for two polynomials only at first:
+#    my($w, $f, $g) = @_;
+#    
+# }
+# 
+user_function face_approach_step(Vector, Map<Vector, Rational>, @){
+   my($w, $g, @reductors) = @_;
+   my $face_cloud_g = maxCloudPoints($g,$w);
+   # print $face_cloud_g,"\n";
+   my $face_g = cloud2Polytope($face_cloud_g);
+   my $lattice_map = new Map<Vector<Integer>, Int>();
+   my $i = 0;
+   map{$lattice_map->{$_->slice(1)}=$i; $i++;}@{$face_g->LATTICE_POINTS};
+   my $dim = $i;
+   # print $lattice_map,"\n";
+
+   my @matrix = ();
+   my $first = new Vector<Rational>($dim);
+   foreach my $key (keys %$face_cloud_g){
+      $first->[$lattice_map->{$key}] = $face_cloud_g->{$key};
+   }
+   push @matrix, $first;
+   # print "Made it to here.\n";
+   $i = 0;
+   my @shift_map = ();
+   foreach my $f (@reductors){
+      my $face_cloud_f = maxCloudPoints($f,$w);
+      # print $face_cloud_f,"\n";
+      my $face_f = cloud2Polytope($face_cloud_f);
+      my $shifts_f = shifts_inside($face_g, $face_f);
+      if($shifts_f->rows > 0){
+         print "This fits!\n";
+         # print $shifts_f;
+         foreach my $s (@$shifts_f){
+            $first = new Vector($dim);
+            foreach my $key (keys %$face_cloud_f){
+               $first->[$lattice_map->{$key+$s}] = $face_cloud_f->{$key};
+            }
+            push @matrix, $first;
+            push @shift_map, new Vector($i, @$s);
+         }
+
+      }
+      $i++;
+   }
+   
+   print new Matrix(@matrix);
+   print new Matrix(@shift_map);
+   # Now do matroid stuff!
+
+   my $A = new Matrix(@matrix);
+   my $matroid = new Matroid(POINTS=>(ones_vector | $A));
+   print $matroid->CIRCUITS;
+}
+
+user_function shifts_inside(Polytope, Polytope){
+   my($p, $q) = @_;
+   print $p->VERTICES;
+   print $q->VERTICES;
+   # Move $q inside of $p!
+   my $Apf = $p->FACETS;
+   my $Ap = $Apf->minor(All, ~[0]);
+   my $bp = $Apf->col(0);
+   my $coll_ineq = new Matrix(0,$Apf->cols);
+   foreach my $v (@{$q->VERTICES}){
+      my $eval = $Ap*($v->slice(1));
+      $coll_ineq = $coll_ineq / ($bp+$eval | $Ap);
+   }
+   
+   my $coll_eq = new Matrix(0,$Apf->cols);
+   my $Epf = $p->AFFINE_HULL;
+   if($Epf->rows > 0){
+      my $Ep = $Epf->minor(All, ~[0]);
+      my $cp = $Epf->col(0);
+      foreach my $v (@{$q->VERTICES}){
+         my $eval = $Ep*($v->slice(1));
+         $coll_eq = $coll_eq / ($cp+$eval | $Ep);
+      }
+   }
+   my $sp = new Polytope(INEQUALITIES=>$coll_ineq, EQUATIONS=>$coll_eq);
+   return (new Matrix($sp->LATTICE_POINTS->minor(All,~[0])));#->minor(All,~[0]));
+   # print $collected;
+}
+
+user_function tropPreVar(@){
+   my(@a) = @_;
+   my @coll = map(cloud2Polytope($_),@a);
+   @coll = map(normal_fan($_),@coll);
+   @coll = map(check_fan($_->RAYS,$_->CONES->[$_->DIM-2]),@coll);
+   my $result = pop @coll;
+   my @nc = map((new Cone(INPUT_RAYS=>$result->RAYS->minor($_,All))),@{$result->MAXIMAL_CONES});
+   foreach my $f (@coll){
+      my @intersectors = @nc;
+      @nc = ();
+      foreach my $mc (@{$f->MAXIMAL_CONES}){
+         # print "Intersecting.\n";
+         my $pmc = new Cone(INPUT_RAYS=>$f->RAYS->minor($mc,All));
+         my @toadd = map(intersection($pmc,$_),@intersectors);
+         @toadd = grep($_->DIM > 0, @toadd);
+         foreach my $c (@toadd){
+            my $s = grep(equal_polyhedra($_,$c),@nc);
+            if($s==0){
+               push @nc, new Cone($c);
+            }
+         }
+      }
+      my $n = @nc;
+      print $n," cones.\n";
+      # $result = check_fan_objects(@nc);
+   }
+   print "Checking fan.\n";
+   my @rays = ();
+   foreach my $c (@nc){
+      foreach my $r (@{$c->RAYS}){
+         my $s = grep($_ == $r, @rays);
+         if($s == 0){
+            push @rays, $r;
+         }
+      }
+   }
+   my $rays = new Matrix(@rays);
+   my $raymap = new Map<Vector, Integer>();
+   my $i = 0;
+   foreach my $r (@rays){
+      $raymap->{$r} = $i;
+      $i++;
+   }
+   my @mc = ();
+   foreach my $c (@nc){
+      push @mc, new Set<Integer>(map($raymap->{$_}, @{$c->RAYS}));
+   }
+   $result = check_fan($rays, new Array<Set<Int>>(@mc));
+   print "Some information:\n";
+   print "Pure: ",$result->PURE,"\n";
+   print "dim: ",$result->DIM,"\n";
+   return $result;
+}
+
+user_function findParallelEdge(Map<Vector, Rational>, Map<Vector, Rational>){
+   my($g, $f) = @_;
+   my $Pg = cloud2Polytope($g);
+   my $Pf = cloud2Polytope($f);
+   # print "V:\n",$Pg->VERTICES;
+   # print "F:\n",$Pg->FACETS;
+   my $edges_g = $Pg->GRAPH->EDGES;
+   my $edges_f = $Pf->GRAPH->EDGES;
+   # print $edges_g,"\n";
+   my $ftv_g = $Pg->FACETS_THRU_VERTICES;
+   my $ftv_f = $Pf->FACETS_THRU_VERTICES;
+   # print $ftv_g;
+   my @edges_g = map(($ftv_g->[$_->[0]]) * ($ftv_g->[$_->[1]]), @$edges_g);
+   my @edges_f = map(($ftv_f->[$_->[0]]) * ($ftv_f->[$_->[1]]), @$edges_f);
+   
+   @edges_g = map((new Cone(INPUT_RAYS=>$Pg->FACETS->minor($_,~[0]))), @edges_g);
+   @edges_f = map((new Cone(INPUT_RAYS=>$Pf->FACETS->minor($_,~[0]))), @edges_f);
+  
+   my $gcounter = 0;
+   foreach my $cg (@edges_g){
+      my $fcounter = 0;
+      foreach my $cf (@edges_f){
+         my $intersection = intersection($cg, $cf);
+         if($intersection->DIM == $intersection->AMBIENT_DIM-1){
+            my $candidate = new Vector($intersection->REL_INT_POINT);
+            my $gft = grep($_*$candidate == 0, @{$cg->FACETS});
+            my $fft = grep($_*$candidate == 0, @{$cf->FACETS});
+            # # print "candidate: ",$candidate,"\n";
+            # print "Pair: ",$gcounter," ",$fcounter," ",$gft+$fft,".\n";
+            # # print "Dims: ",$cg->DIM," ",$cf->DIM,"\n";
+            # # print $cg->FACETS,"\n",$cf->FACETS;
+            # print $Pg->GRAPH->EDGE_DIRECTIONS->[$gcounter],"\n";
+            # print $Pf->GRAPH->EDGE_DIRECTIONS->[$fcounter],"\n";
+            if($gft + $fft == 0){
+               print "THESE WERE PARALLEL!\n";
+               return -$intersection->REL_INT_POINT;
+            }
+         }
+         $fcounter++;
+      }
+      $gcounter++;
+   }
+   print "NO PARALLELS!";
+   return zero_vector(42);
+}
+
+user_function checkWGFan(@){
+   my(@a) = @_;
+   my $b = "abcdefghijklmnop";
+   my $gfan_input="Q[";
+   my $n = (keys %{$a[0]})[0]->dim;
+   $gfan_input .= join(",", split(//,substr($b,0,$n)));
+   $gfan_input .= "]\{\n";
+   foreach my $f (@a){
+      $gfan_input .= cloud2Polynomial($f,$b).",\n";
+   }
+   $gfan_input .= "0\n\}";
+   print $gfan_input,"\n";
+   
+   my $tempfile=new Tempfile;
+   # Writing data to file:
+   open(my $input, ">$tempfile.in") or die "Can't create temporary file $tempfile.in: $!";
+   print $input $gfan_input;
+   close $input;
+   # Executing gfan:
+   system("gfan_homogenize -i -H < $tempfile.in | gfan_buchberger | gfan_tropicalstartingcone | gfan_tropicaltraverse --xml > $tempfile.out");
+   return User::load("$tempfile.out");
+}
+
+user_function cloud2Polynomial(Map<Vector, Rational>, $ ){
+   my($a, $b) = @_;
+   #my $b = "abcdefghijklmnop";
+   my $result = "";
+   foreach my $key (keys %$a){
+      my $monomial = "";
+      if($a->{$key} > 0){
+         $monomial .= "+";
+      }
+      $monomial .= $a->{$key};
+      for(my $i=0; $i<$key->dim; $i++){
+         if($key->[$i] != 0){
+            $monomial .= substr($b,$i,1);
+            if($key->[$i] > 1){
+               $monomial .= $key->[$i];
+            }
+         }
+      }
+      $result .= $monomial;
+   }
+   return $result;
+}
+
+user_function cloud2Polytope(Map<Vector, Rational>){
+   my($a) = @_;
+   my $m = new Matrix(keys %$a);
+   $m = ones_vector($m->rows) | $m;
+   return new Polytope(POINTS=>$m);
+}
+
+user_function step1(Map<Vector, Rational>, Map<Vector, Rational>, Vector){
+   my($g, $f, $v) = @_;
+   my $edge_f = maxCloudPoints($f, $v);
+   my $edge_g = maxCloudPoints($g, $v);
+   # print "f: ",$edge_f,"\n";
+   # print "g: ",$edge_g,"\n";
+   my $first_f = new Vector($v->dim);
+   my $first_g = new Vector($v->dim);
+   foreach my $key (keys %$edge_f){
+      if(lex($key, $first_f)){
+         $first_f = $key;
+      }
+   }
+   foreach my $key (keys %$edge_g){
+      if(lex($key, $first_g)){
+         $first_g = $key;
+      }
+   }
+   my $factor = -$g->{$first_g}/$f->{$first_f};
+   my $shift = $first_g - $first_f;
+   # print "Shift: ",$shift,"\n";
+   my $summand = shiftCloud($f, $shift);
+   $summand = multCloud($summand, $factor);
+   # print $summand,"\n";
+   return addClouds($g, $summand);
+}
+
+user_function lex(Vector, Vector){
+   my($a, $b) = @_;
+   my $t = $a-$b;
+   my $i = 0;
+   while(($t->[$i] == 0) && ($i < $a->dim-1)){
+      $i++;
+   }
+   return ($t->[$i] > 0);
+}
+
+user_function addClouds(Map<Vector, Rational>, Map<Vector, Rational>){
+   my($a, $b) = @_;
+   my $result = new Map<Vector, Rational>();
+   foreach my $key (keys %$a, keys %$b){
+      if(exists($a->{$key})){
+         $result->{$key} += $a->{$key};
+      }
+      if(exists($b->{$key})){
+         $result->{$key} += $b->{$key};
+      }
+   }
+   return cleanup($result);
+}
+
+user_function shiftCloud(Map<Vector, Rational>, Vector){
+   my($a, $b) = @_;
+   my $result = new Map<Vector, Rational>();
+   foreach my $key (keys %$a){
+      $result->{$key+$b} = $a->{$key};
+   }
+   return cleanup($result);
+}
+
+user_function multCloud(Map<Vector, Rational>, Rational){
+   my($a, $b) = @_;
+   my $result = new Map<Vector, Rational>();
+   foreach my $key (keys %$a){
+      $result->{$key} = $b * $a->{$key};
+   }
+   return cleanup($result);
+}
+
+user_function maxCloudValue(Map<Vector, Rational>, Vector){
+   my($a, $b) = @_;
+   my $result = 0;
+   foreach my $key (keys %$a){
+       $result = maximum([$result, $key*$b]);
+   }
+   return $result;
+}
+
+user_function maxCloudPoints(Map<Vector, Rational>, Vector){
+   my($a, $b) = @_;
+   my $value = maxCloudValue($a, $b);
+   my $result = new Map<Vector, Rational>();
+   foreach my $key (keys %$a){
+      if($value == $key*$b){
+         $result->{$key} = $a->{$key};
+      };
+   }
+   return $result;
+}
+
+user_function cleanup(Map<Vector, Rational>){
+   my($a) = @_;
+   my $result = new Map<Vector, Rational>();
+   foreach my $key (keys %$a){
+      if($a->{$key} != 0){
+         $result->{$key} = $a->{$key};
+      }
+   }
+   return $result;
+}

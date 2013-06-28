@@ -1,0 +1,355 @@
+object CyclicQuotient {
+   
+   property CLASS_GROUP : Matrix;
+
+   rule CLASS_GROUP : N, Q{
+      my $n = $this->N;
+      my $q = $this->Q;
+      my $P = new Polytope(POINTS=>[[1,0,0],[1,$q-$n,-1],[1,-$n,0],[1,$q-2*$n,-1]]);
+      my $class_group = $P->LATTICE_POINTS;
+      $class_group = new Matrix<Rational>($class_group->minor(All,~[0]));
+      my @class_group = grep($_->[1] != -1,@$class_group);
+      my @class_group = grep(($_->[0] + ($q-$n)*$_->[1]) != -$n, @class_group);
+      $this->CLASS_GROUP = new Matrix<Rational>(@class_group);
+   }
+
+
+   declare object Ext;
+
+   object Ext {
+
+      property LABELS : String;
+      
+      property GRAPH : Graph<Directed>;
+      
+      property ADJACENCY : Map<Vector,Array<Vector>>;
+
+      property VERTEX_MAP : Map<Vector,Array<Vector>>;
+
+      property GEN_MAP : Map<Vector,Matrix>;
+
+   }
+
+   property EXT : Ext;
+
+   rule EXT.GRAPH.ADJACENCY, EXT.GRAPH.NODE_LABELS : EXT.ADJACENCY, CLASS_GROUP {
+      my $G = $this->CLASS_GROUP;
+      my $numbers = new Map<Vector, Int>();
+      my $graph = new common::Graph<Directed>($G->rows);
+      my $k = 0;
+      foreach my $g (@$G){
+         $numbers->{$g} = $k;
+         $k++;
+      }
+      foreach my $g (@$G){
+         foreach my $n (@{$this->EXT->ADJACENCY->{$g}}){
+            $graph->edge($numbers->{$g},$numbers->{$n});
+         }
+      }
+      $this->EXT->GRAPH->NODE_LABELS = @$G;
+      $this->EXT->GRAPH->ADJACENCY = $graph;
+   }
+
+   rule EXT.ADJACENCY, EXT.VERTEX_MAP, EXT.GEN_MAP : CLASS_GROUP, N, Q {
+      my $n = $this->N;
+      my $q = $this->Q;
+      my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
+      my $vmap = new Map<Vector,Array<Vector>>();
+      my $egraph = new Map<Vector,Array<Vector>>();
+      my $gmap = new Map<Vector,Matrix>();
+      # We construct a hash associating to a divisor
+      # the vertex of its section polytope.
+      my $vertex_hash = new Map<Vector,Vector>();
+      my $labels = "";
+      foreach my $div (@{$this->CLASS_GROUP}){
+         my $D = new Polytope(INEQUALITIES=>$div|$c->FACETS);
+         my $vertex = $D->VERTICES->[0]->slice(1);
+         $vertex_hash->{$div} = $vertex;
+      }
+  
+      foreach my $div (@{$this->CLASS_GROUP}){
+         my $D = new Polytope(INEQUALITIES=>$div|$c->FACETS);
+         my @associated = ();
+         my $genD = lower_lattice_points($D);
+         $genD = $genD->minor(All,~[0]);
+         
+         my @sorted = ();
+         for(my $i =0; $i<200; $i++){
+            foreach my $g (@$genD){
+               if($g->[0]==$i){
+                  push @sorted,$g;
+               }
+            }
+         }
+         $genD = new Matrix<Rational>(@sorted);
+         $gmap->{$div} = $genD;
+
+         # Calculating intersection polytopes:
+         my @ips = map((new Polytope(POINTS=>(ones_vector(1)|$_)/(zero_vector(2)|$c->RAYS))),@$genD);
+         my $n = @ips;
+         @ips = map(intersection($ips[$_],$ips[$_+1]),0..($n-2));
+         @ips = map(($_->VERTICES->[0]->slice(1)),@ips);
+         
+         # Setting the vertex map:
+         $vmap->{$div} = new Array<Vector>(map(-$_,@ips));
+         
+         foreach my $t (@ips){
+            foreach my $v (@{$this->CLASS_GROUP}){
+               if(is_integral($t-$vertex_hash->{$v})){
+                  push @associated, new Vector($v);
+                  $labels .= $div;
+                  $labels .= " < shift: ";
+                  $labels .= $t-$vertex_hash->{$v};
+                  $labels .= " < ";
+                  $labels .= $v;
+                  $labels .= "\n";
+                  last;
+               }
+            }
+         }
+         
+         # Setting the graph:
+         $egraph->{$div} = new Array<Vector>(@associated);
+      }
+      print $labels;
+      # Assigning to global:
+      $this->EXT->VERTEX_MAP = $vmap;
+      $this->EXT->ADJACENCY = $egraph;
+      $this->EXT->GEN_MAP = $gmap;
+   }
+
+   user_method print_ext_nicely(){
+      my $cq = $_[0];
+      foreach my $div (@{$cq->CLASS_GROUP}){
+         print "The divisor ",$div," is associated with:\n";
+         foreach my $a ($cq->EXT->ADJACENCY->{$div}){
+            print $a,"\n";
+         }
+         print ".\n";
+      }
+   }
+
+   user_method compute_ext_matrix(){
+      my $cq = $_[0];
+      my @result = ();
+      foreach my $d (@{$cq->CLASS_GROUP}){
+         push @result, $cq->compute_ext_matrix_local(new Vector<Rational>($d));
+      }
+      return new Matrix(@result);
+   }
+
+   user_method compute_ext_matrix_local(Vector){
+      
+      my $cq = $_[0];
+      my $d = $_[1];
+      my $n = $cq->N;
+      my $q = $cq->Q;
+      my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
+      my $H = $c->HILBERT_BASIS;
+      my @result = ();
+
+      load_singular_library("homolog.lib");
+      load_singular_library("toric.lib");
+      my $singular = "ring R = 0,(x(0..".($H->rows-1).")),dp;\n";
+      $singular .= "intmat m[".$H->rows."][".$H->cols."] = ";
+      $singular .= join(",",map(join(",",@$_),@$H)).";\n";
+      $singular .= "m = transpose(m);\n";
+      $singular .= "ideal ti = toric_ideal(m,\"pt\");\n";
+      $singular .= "qring q = std(ti);\n";
+      singular_eval($singular);
+
+      my $j = new Polytope(INEQUALITIES=>$d|$c->FACETS); 
+      my $jvertex = $j->VERTICES->[0]->slice(1); 
+      my $genj = lower_lattice_points($j);
+      $genj = $genj->minor(All,~[0]);
+      $singular = "ideal j = ";
+      if($genj->rows == 1){
+            $singular .= "1;\n";
+         } else {
+            foreach my $v (@$genj){
+               $singular .= "1";
+               my $g = find_positive_combination($v,$H,$c->FACETS);
+               for(my $i=0; $i<$g->dim;$i++){
+                  if($g->[$i]>0){
+                     $singular .= "*x(".$i.")^".$g->[$i];
+                  }
+               }
+               $singular .= ",";
+            }
+            $singular .= "0;\n";
+         }
+      $singular .= "j = std(j);\n";
+      singular_eval($singular);
+
+      foreach my $div (@{$cq->CLASS_GROUP}){
+         my $geni = $cq->EXT->GEN_MAP->{$div};
+         my $lower_ann = new Polytope(POINTS=>(ones_vector(1)|$jvertex-$geni->[0])/(zero_vector(2)|$c->RAYS)); 
+         my $upper_ann = new Polytope(POINTS=>(ones_vector(1)|$jvertex-$geni->[$geni->rows-1])/(zero_vector(2)|$c->RAYS)); 
+         my $ann = intersection($lower_ann,$upper_ann); 
+         my $nann_vertex = $ann->VERTICES->[0]->slice(1); 
+         # Complement of the annihilating polytopes: 
+         my $nann = new Polytope(POINTS=>(ones_vector(1)|$nann_vertex)/(zero_vector(2)|-$c->RAYS)); 
+ 
+         # Creating the intersection polytopes: 
+         my @ips = @{$cq->EXT->VERTEX_MAP->{$div}}; 
+         @ips = map((new Polytope(POINTS=>(ones_vector(1)|$_+$jvertex)/(zero_vector(2)|$c->RAYS))),@ips); 
+         @ips = map(intersection($nann,$_),@ips); 
+         my @unique = (); 
+         foreach my $pp (@ips){ 
+            my $mat = $pp->LATTICE_POINTS; 
+            foreach my $v (@$mat){ 
+               my $id = grep($_ == $v, @unique); 
+               if($id == 0){ 
+                  push @unique, $v; 
+               } 
+            } 
+         } 
+   
+         # Eliminating relations that are on the boundary of the annihilator: 
+         my @below = (); 
+         foreach my $g (@unique){ 
+            my $a = polytope_contains_point($lower_ann,new Vector<Rational>($g)); 
+            my $b = polytope_contains_point($upper_ann,new Vector<Rational>($g)); 
+            if (!$a && !$b){ 
+               push @below,$g; 
+            } 
+         } 
+         my $u = new Matrix(@below);
+         # Translating generators for Singular: 
+         # print $div," has Ext1(.,D)-dimension ",$u->rows,"\n"; 
+         push @result, $u->rows;
+
+         $singular = "ideal i = "; 
+         if($geni->rows == 1){ 
+               $singular .= "1;\n"; 
+            } else { 
+               foreach my $v (@$geni){ 
+                  $singular .= "1"; 
+                  my $g = find_positive_combination($v,$H,$c->FACETS); 
+                  for(my $i=0; $i<$g->dim;$i++){ 
+                     if($g->[$i]>0){ 
+                        $singular .= "*x(".$i.")^".$g->[$i]; 
+                     } 
+                  } 
+                  $singular .= ","; 
+               } 
+               $singular .= "0;\n"; 
+            } 
+         $singular .= "i = std(i);\n";
+         $singular .= "module L = Ext(1,syz(i),syz(j));\n";
+         $singular .= "int a = vdim(L);\n";
+         # print "The singular result:\n";
+         singular_eval($singular);      
+         my $a = singular_get_int("a");
+         if($a == -1){
+            $a = 0;
+         }
+         my $check = $a == $u->rows;
+         print "Check: ",$check,"\n";
+         if(!$check){
+            print $a," ",$u->rows,"\n";
+         }
+      }
+      return new Vector(@result);
+   }
+
+   user_method compute_all_ext1_ws(Vector){
+      my $cq = $_[0];
+      my $d = $_[1];
+      my $n = $cq->N;
+      my $q = $cq->Q;
+      my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
+      my $H = $c->HILBERT_BASIS;
+
+      my $singular = "LIB \"homolog.lib\";\n";
+      $singular .= "LIB \"toric.lib\";\n";
+      $singular .= "ring R = 0,(x(0..".($H->rows-1).")),dp;\n";
+      $singular .= "intmat m[".$H->rows."][".$H->cols."] = ";
+      $singular .= join(",",map(join(",",@$_),@$H)).";\n";
+      $singular .= "m = transpose(m);\n";
+      $singular .= "ideal ti = toric_ideal(m,\"pt\");\n";
+      $singular .= "qring q = std(ti);\n";
+      
+      my $j = new Polytope(INEQUALITIES=>$d|$c->FACETS); 
+      my $jvertex = $j->VERTICES->[0]->slice(1); 
+      my $genj = lower_lattice_points($j);
+      $genj = $genj->minor(All,~[0]);
+      $singular .= "ideal j = ";
+      if($genj->rows == 1){
+            $singular .= "1;\n";
+         } else {
+            foreach my $v (@$genj){
+               $singular .= "1";
+               my $g = find_positive_combination($v,$H,$c->FACETS);
+               for(my $i=0; $i<$g->dim;$i++){
+                  if($g->[$i]>0){
+                     $singular .= "*x(".$i.")^".$g->[$i];
+                  }
+               }
+               $singular .= ",";
+            }
+            $singular .= "0;\n";
+         }
+      $singular .= "j = std(j);\n";
+      
+      foreach my $div (@{$cq->CLASS_GROUP}){
+         my $geni = $cq->EXT->GEN_MAP->{$div};
+         my $lower_ann = new Polytope(POINTS=>(ones_vector(1)|$jvertex-$geni->[0])/(zero_vector(2)|$c->RAYS)); 
+         my $upper_ann = new Polytope(POINTS=>(ones_vector(1)|$jvertex-$geni->[$geni->rows-1])/(zero_vector(2)|$c->RAYS)); 
+         my $ann = intersection($lower_ann,$upper_ann); 
+         my $nann_vertex = $ann->VERTICES->[0]->slice(1); 
+         # Complement of the annihilating polytopes: 
+         my $nann = new Polytope(POINTS=>(ones_vector(1)|$nann_vertex)/(zero_vector(2)|-$c->RAYS)); 
+ 
+         # Creating the intersection polytopes: 
+         my @ips = @{$cq->EXT->VERTEX_MAP->{$div}}; 
+         @ips = map((new Polytope(POINTS=>(ones_vector(1)|$_+$jvertex)/(zero_vector(2)|$c->RAYS))),@ips); 
+         @ips = map(intersection($nann,$_),@ips); 
+         my @unique = (); 
+         foreach my $pp (@ips){ 
+            my $mat = $pp->LATTICE_POINTS; 
+            foreach my $v (@$mat){ 
+               my $id = grep($_ == $v, @unique); 
+               if($id == 0){ 
+                  push @unique, $v; 
+               } 
+            } 
+         } 
+   
+         # Eliminating relations that are on the boundary of the annihilator: 
+         my @below = (); 
+         foreach my $g (@unique){ 
+            my $a = polytope_contains_point($lower_ann,new Vector<Rational>($g)); 
+            my $b = polytope_contains_point($upper_ann,new Vector<Rational>($g)); 
+            if (!$a && !$b){ 
+               push @below,$g; 
+            } 
+         } 
+         my $u = new Matrix(@below);
+         print "\nThe degrees of this Ext1 are:\n",$u;
+         # Translating generators for Singular: 
+         print $div," has Ext1(.,D)-dimension ",$u->rows,"\n"; 
+       
+         $singular .= "ideal i = "; 
+         if($geni->rows == 1){ 
+               $singular .= "1;\n"; 
+            } else { 
+               foreach my $v (@$geni){ 
+                  $singular .= "1"; 
+                  my $g = find_positive_combination($v,$H,$c->FACETS); 
+                  for(my $i=0; $i<$g->dim;$i++){ 
+                     if($g->[$i]>0){ 
+                        $singular .= "*x(".$i.")^".$g->[$i]; 
+                     } 
+                  } 
+                  $singular .= ","; 
+               } 
+               $singular .= "0;\n"; 
+            } 
+         $singular .= "i = std(i);\n";
+         $singular .= "def L = Ext(1,syz(i),syz(j));\n";
+         $singular .= "def L = Ext(2,syz(i),syz(j));\n";
+      }
+      print $singular;
+   }
+}

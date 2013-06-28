@@ -1,0 +1,8 @@
+user_function integerSection(Matrix<Integer>){
+	my($m) = @_;
+   if($m->rows > $m->cols){
+      return transpose(integerSection(transpose($m)));
+   }
+   my $s = smith_normal_form($m);
+   return transpose($s->[2])->minor([0..($m->rows - 1)],All);
+}
