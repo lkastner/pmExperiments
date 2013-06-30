@@ -1,8 +1,73 @@
-user_function integerSection(Matrix<Integer>){
+user_function integer_section(Matrix<Integer>){
 	my($m) = @_;
    if($m->rows > $m->cols){
       return transpose(integerSection(transpose($m)));
    }
-   my $s = smith_normal_form($m);
-   return transpose($s->[2])->minor([0..($m->rows - 1)],All);
+   my $s = smith_normal_form($m,1);
+   my $r = $m->rows-1;
+   my $check = det($s->[0]->minor(All,[0..$r]));
+   $check*$check == 1 or die 'No integer section possible.';
+   my $result = $s->[2]->minor(All,[0..$r])*inv($s->[1])*inv($s->[0]->minor(All,[0..$r]));
+   return $result;
 }
+
+user_function complete_exact_sequence(Matrix<Integer>){
+   my($A) = @_;
+   my $s = smith_normal_form($A);
+   my $r = $A->rows-1;
+   my $c = $A->cols-1;
+   my $B;
+   if($r>$c){
+      my $check = det($s->[0]->minor([0..$c],All));
+      $check*$check == 1 or die 'No integer section possible.';
+      $B = $A;
+      $A = null_space(transpose($B));
+   } else {
+      my $check = det($s->[0]->minor(All,[0..$r]));
+      $check*$check == 1 or die 'No integer section possible.';
+      $B = transpose(null_space($A));
+   }
+   return($B,$A);
+}
+
+user_function downgrade(Matrix<Integer>, Matrix<Integer>, Matrix<Integer>){
+   my($F,$P,$s) = @_;
+   my $fan = cocoref_topcom(transpose(new Matrix<Integer>($P)));
+   my @pp = map(primitive($_),@{$fan->RAYS});
+   @pp = map((new Matrix<Rational>(-$_ | $P)),@pp);
+   @pp = map((new Polytope(EQUATIONS=>$_,INEQUALITIES=>new Matrix(0,0))),@pp);
+   my $pos_orth = new Polytope(INEQUALITIES=>(zero_vector($P->cols)|unit_matrix($P->cols)));
+   @pp = map(intersection($_,$pos_orth),@pp);
+   # foreach my $P (@pp){
+   #    print $P->VERTICES,"\n";
+   #    print $P->DIM,"\n";
+   # }
+   my $s_extended = new Matrix<Rational>(unit_vector($s->cols+1,0)/(zero_vector($s->rows)|new Matrix<Rational>($s)));
+   print $s_extended;
+   @pp = map((new Polytope(POINTS=>($_->VERTICES)*transpose($s_extended))),@pp);
+   # foreach my $P (@pp){
+   #    print $P->VERTICES,"\n";
+   #    print $P->DIM,"\n";
+   # }
+   my $result = new Map<Vector, Matrix>();
+   for(my $i=0; $i<$fan->RAYS->rows; $i++){
+      $result->{$fan->RAYS->[$i]} = $pp[$i]->VERTICES;
+   }
+   return($fan, $result);
+}
+
+# user_function downgrade(Matrix<Integer>){
+#    my($H) = @_;
+#    my($A, $B) = complete_exact_sequence($H);
+#    my $s = integer_section($H);
+#    my $fan = cocoref_topcom(transpose(new Matrix<Integer>($B)));
+#    my @pp = map(primitive($_),@{$fan->RAYS});
+#    @pp = map((new Matrix<Rational>(-$_ | $B)),@pp);
+#    @pp = map((new Polytope(EQUATIONS=>$_,INEQUALITIES=>new Matrix(0,0))),@pp);
+#    my $pos_orth = new Polytope(INEQUALITIES=>(zero_vector($B->cols)|unit_matrix($B->cols)));
+#    @pp = map(intersection($_,$pos_orth),@pp);
+#    foreach my $P (@pp){
+#       print $P->VERTICES,"\n";
+#       print $P->DIM,"\n";
+#    }
+# }
