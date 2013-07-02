@@ -1,34 +1,47 @@
 user_function integer_section(Matrix<Integer>){
 	my($m) = @_;
    if($m->rows > $m->cols){
-      return transpose(integerSection(transpose($m)));
+      return transpose(integer_section(transpose($m)));
    }
    my $s = smith_normal_form($m,1);
    my $r = $m->rows-1;
    my $check = det($s->[0]->minor(All,[0..$r]));
    $check*$check == 1 or die 'No integer section possible.';
    my $result = $s->[2]->minor(All,[0..$r])*inv($s->[1])*inv($s->[0]->minor(All,[0..$r]));
-   return $result;
+   return new Matrix<Integer>($result);
 }
 
 user_function complete_exact_sequence(Matrix<Integer>){
    my($A) = @_;
    my $s = smith_normal_form($A);
-   my $r = $A->rows-1;
-   my $c = $A->cols-1;
-   my $B;
+   my $r = $A->rows;
+   my $c = $A->cols;
+   my $F; my $P;
    if($r>$c){
-      my $check = det($s->[0]->minor([0..$c],All));
+      my $check = det($s->[0]->minor([0..($c-1)],All));
       $check*$check == 1 or die 'No integer section possible.';
-      $B = $A;
-      $A = null_space(transpose($B));
+      $F = $A;
+      $s = smith_normal_form($F,1);
+      $A = $s->[1];
+      # print $A;
+      $P = (zero_matrix<Integer>($r-$c,$c))|(unit_matrix<Integer>($r-$c));
+      # print $P;
+      $P = $P*$A;
    } else {
-      my $check = det($s->[0]->minor(All,[0..$r]));
+      my $check = det($s->[0]->minor(All,[0..($r-1)]));
       $check*$check == 1 or die 'No integer section possible.';
-      $B = transpose(null_space($A));
+      $P = $A;
+      $s = smith_normal_form($P,1);
+      $A = $s->[2];
+      # print $A;
+      $F = (zero_matrix<Integer>($c-$r,$r))/(unit_matrix<Integer>($c-$r));
+      # print $P;
+      $F = $A*$F;
    }
-   return($B,$A);
+   return($F,$P);
 }
+
+
 
 user_function downgrade(Matrix<Integer>, Matrix<Integer>, Matrix<Integer>){
    my($F,$P,$s) = @_;
@@ -43,7 +56,7 @@ user_function downgrade(Matrix<Integer>, Matrix<Integer>, Matrix<Integer>){
    #    print $P->DIM,"\n";
    # }
    my $s_extended = new Matrix<Rational>(unit_vector($s->cols+1,0)/(zero_vector($s->rows)|new Matrix<Rational>($s)));
-   print $s_extended;
+   # print $s_extended;
    @pp = map((new Polytope(POINTS=>($_->VERTICES)*transpose($s_extended))),@pp);
    # foreach my $P (@pp){
    #    print $P->VERTICES,"\n";
