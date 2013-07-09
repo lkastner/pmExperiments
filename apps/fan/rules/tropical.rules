@@ -1,10 +1,59 @@
+
+declare object Cloud{
+
+   property POLYNOMIAL : Polynomial;
+
+   property EXPONENTS : Matrix<Integer>;
+
+   property COEFFICIENTS : Map<Vector<Integer>, Rational>;
+
+   property POLYTOPE : Polytope;
+
+   property TROPICAL_VARIETY : PolyhedralFan;
+
+   rule EXPONENTS : COEFFICIENTS {
+      $this->EXPONENTS = new Matrix<Integer>(keys %{$this->COEFFICIENTS});
+   }
+
+   rule TROPICAL_VARIETY : POLYTOPE {
+      $this->TROPICAL_VARIETY = normal_fan($this->POLYTOPE);
+   }
+
+   rule POLYTOPE : EXPONENTS {
+      $this->POLYTOPE = new Polytope(POINTS=>ones_vector | new Matrix<Rational>($this->EXPONENTS));
+   }
+
+   rule EXPONENTS, COEFFICIENTS : POLYNOMIAL {
+      $this->EXPONENTS = new Matrix<Integer>($this->POLYNOMIAL->monomials_as_matrix);
+      my $coeff_vec = $this->POLYNOMIAL->coefficients_as_vector;
+      my $coeff = new Map<Vector<Integer>, Rational>();
+      for(my $i=0; $i<$coeff_vec->dim; $i++){
+         $coeff->{$this->EXPONENTS->[$i]}=$coeff_vec->[$i];
+      }
+      $this->COEFFICIENTS = $coeff;
+   }
+
+   user_method coefficients_as_vector(){
+      my($this) = @_;
+      my $EXP = $this->EXPONENTS;
+      my $COEFF = $this->COEFFICIENTS;
+      my @result = ();
+      foreach my $v (@$EXP){
+         push @result, $COEFF->{$v};
+      }
+      return new Vector<Rational>(@result);
+   }
+
+}
+
+
 # user_function face_approach(Vector, @){
 #    # We do this for two polynomials only at first:
 #    my($w, $f, $g) = @_;
 #    
 # }
 # 
-user_function face_approach_step(Vector, Map<Vector, Rational>, @){
+user_function face_approach_step(Vector, Cloud, @){
    my($w, $g, @reductors) = @_;
    my $face_cloud_g = maxCloudPoints($g,$w);
    # print $face_cloud_g,"\n";
@@ -85,8 +134,7 @@ user_function shifts_inside(Polytope, Polytope){
 
 user_function tropPreVar(@){
    my(@a) = @_;
-   my @coll = map(cloud2Polytope($_),@a);
-   @coll = map(normal_fan($_),@coll);
+   @coll = map($_->TROPICAL_VARIETY,@coll);
    @coll = map(check_fan($_->RAYS,$_->CONES->[$_->DIM-2]),@coll);
    my $result = pop @coll;
    my @nc = map((new Cone(INPUT_RAYS=>$result->RAYS->minor($_,All))),@{$result->MAXIMAL_CONES});
@@ -137,10 +185,10 @@ user_function tropPreVar(@){
    return $result;
 }
 
-user_function findParallelEdge(Map<Vector, Rational>, Map<Vector, Rational>){
+user_function findParallelEdge(Cloud, Cloud){
    my($g, $f) = @_;
-   my $Pg = cloud2Polytope($g);
-   my $Pf = cloud2Polytope($f);
+   my $Pg = $g->POLYTOPE;
+   my $Pf = $f->POLYTOPE;
    # print "V:\n",$Pg->VERTICES;
    # print "F:\n",$Pg->FACETS;
    my $edges_g = $Pg->GRAPH->EDGES;
@@ -229,14 +277,7 @@ user_function cloud2Polynomial(Map<Vector, Rational>, $ ){
    return $result;
 }
 
-user_function cloud2Polytope(Map<Vector, Rational>){
-   my($a) = @_;
-   my $m = new Matrix(keys %$a);
-   $m = ones_vector($m->rows) | $m;
-   return new Polytope(POINTS=>$m);
-}
-
-user_function step1(Map<Vector, Rational>, Map<Vector, Rational>, Vector){
+user_function step1(Cloud, Cloud, Vector){
    my($g, $f, $v) = @_;
    my $edge_f = maxCloudPoints($f, $v);
    my $edge_g = maxCloudPoints($g, $v);
@@ -273,57 +314,61 @@ user_function lex(Vector, Vector){
    return ($t->[$i] > 0);
 }
 
-user_function addClouds(Map<Vector, Rational>, Map<Vector, Rational>){
+user_function addClouds(Cloud, Cloud){
    my($a, $b) = @_;
-   my $result = new Map<Vector, Rational>();
-   foreach my $key (keys %$a, keys %$b){
-      if(exists($a->{$key})){
+   my $result = new Map<Vector<Integer>, Rational>();
+   foreach my $key (@{$a->EXPONENTS/$b->EXPONENTS}){
+      if(exists($a->COEFFICIENTS->{$key})){
          $result->{$key} += $a->{$key};
       }
-      if(exists($b->{$key})){
+      if(exists($b->COEFFICIENTS->{$key})){
          $result->{$key} += $b->{$key};
       }
    }
-   return cleanup($result);
+   return new Cloud(COEFFICIENTS=>cleanup($result));
 }
 
-user_function shiftCloud(Map<Vector, Rational>, Vector){
+user_function shiftCloud(Cloud, Vector){
    my($a, $b) = @_;
-   my $result = new Map<Vector, Rational>();
-   foreach my $key (keys %$a){
-      $result->{$key+$b} = $a->{$key};
+   my $result = new Map<Vector<Integer>, Rational>();
+   foreach my $key (@{$a->EXPONENTS}){
+      $result->{$key+$b} = $a->COEFFICIENTS->{$key};
    }
-   return cleanup($result);
+   return new Cloud(COEFFICIENTS=>$result);
 }
 
-user_function multCloud(Map<Vector, Rational>, Rational){
+user_function multCloud(Cloud, $ ){
    my($a, $b) = @_;
-   my $result = new Map<Vector, Rational>();
-   foreach my $key (keys %$a){
-      $result->{$key} = $b * $a->{$key};
+   if($b != 0){
+      my $coeffs = $a->COEFFICIENTS;
+      my $res = new Map<Vector<Integer>, Rational>();
+      for my $key (keys %$coeffs){
+         $res->{$key} = $b * $coeffs->{$key};
+      }
+      return new Cloud(EXPONENTS=>$a->EXPONENTS, COEFFICIENTS=>$res);
    }
-   return cleanup($result);
+   return new Cloud(EXPONENTS=>new Matrix<Integer>());
 }
 
-user_function maxCloudValue(Map<Vector, Rational>, Vector){
+user_function maxCloudValue(Cloud, Vector){
    my($a, $b) = @_;
    my $result = 0;
-   foreach my $key (keys %$a){
+   foreach my $key (@{$a->EXPONENTS}){
        $result = maximum([$result, $key*$b]);
    }
    return $result;
 }
 
-user_function maxCloudPoints(Map<Vector, Rational>, Vector){
+user_function maxCloudPoints(Cloud, Vector){
    my($a, $b) = @_;
    my $value = maxCloudValue($a, $b);
    my $result = new Map<Vector, Rational>();
-   foreach my $key (keys %$a){
+   foreach my $key (@{$a->EXPONENTS}){
       if($value == $key*$b){
          $result->{$key} = $a->{$key};
       };
    }
-   return $result;
+   return new Cloud(COEFFICIENTS=>$result);
 }
 
 user_function cleanup(Map<Vector, Rational>){
