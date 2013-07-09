@@ -16,7 +16,8 @@ declare object Cloud{
    }
 
    rule TROPICAL_VARIETY : POLYTOPE {
-      $this->TROPICAL_VARIETY = normal_fan($this->POLYTOPE);
+      my $f = normal_fan($this->POLYTOPE);
+      $this->TROPICAL_VARIETY = check_fan($f->RAYS,$f->CONES->[$f->DIM-2);
    }
 
    rule POLYTOPE : EXPONENTS {
