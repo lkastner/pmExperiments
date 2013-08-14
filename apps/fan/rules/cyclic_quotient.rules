@@ -384,3 +384,128 @@ object CyclicQuotient {
       print $singular;
    }
 }
+
+user_function ext_mat_test(Vector<Integer>){
+   my($c) = @_;
+   print "C: ",$c,"\n";
+   $c = reduce_cf($c);
+
+   if($c == new Vector<Integer>([1])){
+      return new Matrix([[0]]);
+   }
+   if($c == new Vector<Integer>([2])){
+      return new Matrix([[0,0],[1,0]]);
+   }
+   if($c->dim == 1){
+      my $N = new Int($c->[0]);
+      my $triang = new Matrix(map(zero_vector($_)|ones_vector($N-1-$_), 0..($N-2)));
+      $triang = zero_vector($N) / ($triang | zero_vector($N -1));
+      # print "Triang:\n",$triang,"\n";
+      my $d = new Vector<Integer>($c);
+      $d->[0]--;
+      my $summand = ext_mat_test($d);
+      # print "Summand:\n",$summand,"\n";
+      $summand = zero_vector($summand->rows + 1) | ($summand / zero_vector($summand->cols));
+      return $triang + $summand;
+   }
+   my $d = new Vector<Integer>($c->slice(0,1));
+   $d->[0]--;
+   my $upper_block = ext_mat_test($d);
+   my $lower_block = new Matrix([[0]]);
+   my $upper_left = new Matrix($upper_block->rows,1);
+   print "Upper block:\n",$upper_block,"\n";
+   print "Lower block:\n",$lower_block,"\n";
+   print "Upper left:\n",$upper_left,"\n";
+   
+   
+   my $c_modified = new Vector<Integer>($c);
+   $c_modified->[$c_modified->dim - 1]--;
+   if($c->dim%2 == 0){
+      for(my $i = 1; $i<=$c_modified->dim; $i++){
+         if($i%2 == 1){
+            # Replacing the lower block:
+            print "Replacing lower block!\n";
+            $lower_block = ext_mat_test($c_modified->slice(0,$i));
+            while($upper_left->cols < $lower_block->cols){
+               $upper_left = $upper_left | $upper_block;
+            }
+         } else {
+            print "Replacing upper block!\n";
+            # Replacing the upper block:
+            $upper_block = ext_mat_test($c_modified->slice(0,$i));
+            while($upper_left->rows < $upper_block->rows){
+               $upper_left = $upper_left / $lower_block;
+            }
+         }
+         print "Upper block:\n",$upper_block,"\n";
+         print "Lower block:\n",$lower_block,"\n";
+         print "Upper left:\n",$upper_left,"\n";
+      }
+   } else {
+      for(my $i = 2; $i<=$c_modified->dim; $i++){
+         if($i%2 == 0){
+            # Replacing the lower block:
+            print "Replacing lower block!\n";
+            $lower_block = ext_mat_test($c_modified->slice(0,$i));
+            while($upper_left->cols < $lower_block->cols){
+               $upper_left = $upper_left | $upper_block;
+            }
+         } else {
+            print "Replacing upper block!\n";
+            # Replacing the upper block:
+            $upper_block = ext_mat_test($c_modified->slice(0,$i));
+            while($upper_left->rows < $upper_block->rows){
+               $upper_left = $upper_left / $lower_block;
+            }
+         }
+         print "Upper block:\n",$upper_block,"\n";
+         print "Lower block:\n",$lower_block,"\n";
+         print "Upper left:\n",$upper_left,"\n";
+      }
+   }
+
+   my $lower_right = new Matrix(map($upper_left->[$upper_left->rows - $_ - 1], 0..($upper_left->rows - 1)));
+   print $lower_right;
+   $lower_right = transpose($lower_right);
+   my $lower_right = new Matrix(map($lower_right->[$lower_right->rows - $_ - 1], 0..($lower_right->rows - 1)));
+   my $summand = ($upper_left | $upper_block) / ($lower_block | $lower_right);
+   # print "Summand:\n",$summand,"\n";
+
+   my $N = $summand->cols;
+   my $triang = new Matrix(map(zero_vector($_)|ones_vector($N-1-$_), 0..($N-2)));
+   # print "Triang:\n",$triang,"\n";
+   $triang = zero_vector($N) / ($triang | zero_vector($N -1));
+   return $triang + $summand;
+
+
+}
+
+user_function fill_cq(Int, Vector<Integer>){
+   my($N, $c) = @_;
+   my $A = ext_mat_test($c);
+   my $result = $A;
+   while($result->cols+$A->cols < $N){
+      $result = $result | $A;
+   }
+   $result = $result | transpose($A->rows, $c->slice(0, $c->dim - 1));
+}
+
+user_function reduce_cf(Vector<Integer>){
+   my($c) = @_;
+   if(($c->[$c->dim -1] == 1) && ($c->dim > 1)){
+      my $d = $c->slice(0,$c->dim -1);
+      $d->[$d->dim - 1]--;
+      return reduce_cf($d);
+   } else {
+      return $c;
+   }
+}
+
+
+
+
+
+
+
+
+
