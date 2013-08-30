@@ -186,7 +186,7 @@ object CyclicQuotient {
       $singular .= "m = transpose(m);\n";
       $singular .= "ideal ti = toric_ideal(m,\"pt\");\n";
       $singular .= "qring q = std(ti);\n";
-      # singular_eval($singular);
+      singular_eval($singular);
 
       my $j = new Polytope(INEQUALITIES=>$d|$c->FACETS); 
       my $jvertex = $j->VERTICES->[0]->slice(1); 
@@ -209,7 +209,7 @@ object CyclicQuotient {
             $singular .= "0;\n";
          }
       $singular .= "j = std(j);\n";
-      # singular_eval($singular);
+      singular_eval($singular);
 
       foreach my $div (@{$cq->CLASS_GROUP}){
          my $geni = $cq->EXT->GEN_MAP->{$div};
@@ -268,17 +268,17 @@ object CyclicQuotient {
          $singular .= "i = std(i);\n";
          $singular .= "module L = Ext(1,syz(i),syz(j));\n";
          $singular .= "int a = vdim(L);\n";
-         # print "The singular result:\n";
-         # singular_eval($singular);      
-         # my $a = singular_get_int("a");
-         # if($a == -1){
-         #    $a = 0;
-         # }
-         # my $check = $a == $u->rows;
-         # print "Check: ",$check,"\n";
-         # if(!$check){
-         #    print $a," ",$u->rows,"\n";
-         # }
+         print "The singular result:\n";
+         singular_eval($singular);      
+         my $a = singular_get_int("a");
+         if($a == -1){
+            $a = 0;
+         }
+         my $check = $a == $u->rows;
+         print "Check: ",$check,"\n";
+         if(!$check){
+            print $a," ",$u->rows,"\n";
+         }
       }
       return new Vector(@result);
    }
@@ -417,7 +417,7 @@ user_function splitted_ext_mat(Vector<Integer>){
       while($UR->cols < $replacement->cols){
          $UR = $UB | $UR;
       }
-      return ($UB, $LB, $UR);
+      return (new Matrix($UB), new Matrix($LB), new Matrix($UR));
    } else {
       # Replace upper block
       my $ctilda = new Vector<Integer>($c);
@@ -431,7 +431,7 @@ user_function splitted_ext_mat(Vector<Integer>){
       while($UR->rows < $replacement->rows){
          $UR = $UR / $LB;
       }
-      return ($UB, $LB, $UR);
+      return (new Matrix($UB), new Matrix($LB), new Matrix($UR));
    }
 }
 
