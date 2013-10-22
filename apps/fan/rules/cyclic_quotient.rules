@@ -167,6 +167,53 @@ object CyclicQuotient {
       }
       return new Matrix(@result);
    }
+   
+   user_method compute_ext_polytopes(){
+      
+      my $cq = $_[0];
+      my $n = $cq->N;
+      my $q = $cq->Q;
+      my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
+
+      my $tikzcode = "";
+
+      foreach my $div (@{$cq->CLASS_GROUP}){
+         $tikzcode .= "Divisor: (".$div.")\n";
+         my $geni = $cq->EXT->GEN_MAP->{$div};
+         my $lower_ann = new Polytope(POINTS=>(ones_vector(1)|-$geni->[0])/(zero_vector(2)|$c->RAYS)); 
+         my $upper_ann = new Polytope(POINTS=>(ones_vector(1)|-$geni->[$geni->rows-1])/(zero_vector(2)|$c->RAYS)); 
+         my $ann = intersection($lower_ann,$upper_ann); 
+         my $nann_vertex = $ann->VERTICES->[0]->slice(1); 
+         # Complement of the annihilating polytopes: 
+         my $nann = new Polytope(POINTS=>(ones_vector(1)|$nann_vertex)/(zero_vector(2)|-$c->RAYS)); 
+ 
+         # Creating the intersection polytopes: 
+         my @ips = @{$cq->EXT->VERTEX_MAP->{$div}}; 
+         @ips = map((new Polytope(POINTS=>(ones_vector(1)|$_)/(zero_vector(2)|$c->RAYS))),@ips); 
+         @ips = map(intersection($nann,$_),@ips); 
+         
+         $tikzcode .= "\\\[\\begin\{tikzpicture\}\n";
+         foreach my $pp (@ips){
+            if($pp->VERTICES->rows != 4){
+               die "Wrong number of vertices!";
+            }
+            my $v = $pp->VERTICES->minor(All, ~[0]);
+            my $v1 = $pp->VERTICES->minor([0,2,1,3], ~[0]);
+            my @v = map("(".$_->[0].",".$_->[1].")",@$v);
+            my @v1 = map("(".$_->[0].",".$_->[1].")",@$v1);
+            $tikzcode .= "\\fill ";
+            $tikzcode .= join(" -- ",@v);
+            $tikzcode .= " -- cycle;\n";
+            $tikzcode .= "\\fill ";
+            $tikzcode .= join(" -- ",@v1);
+            $tikzcode .= " -- cycle;\n";
+         }
+         $tikzcode .= "\\end\{tikzpicture\}\\\]\n";
+   
+
+      }
+      print $tikzcode;
+   }
 
    user_method compute_ext_matrix_local(Vector){
       
