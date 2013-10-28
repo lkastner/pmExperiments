@@ -52,14 +52,20 @@ user_function testing(Cone, Vector, Vector){
 
 user_function toPolynomial($ , $ ){
    my($R, $s) = @_;
+   # Remove white spaces.
    $s =~ s/\s//g;
+   # If we get the empty string, just return 0.
+   if(length($s) == 0){
+      return new Polynomial($R);
+   }
    if(index($s, "(")!=-1){
       # print "String has brackets!\n";
       my $beginning = substr($s,0,index($s, "("));
       # print "Beginning: ",$beginning,"\n";
       $s = substr($s,index($s, "("),length($s));
       my $done = 0;
-      my @prod = ();
+      my $prod = new Polynomial($R);
+      $prod += 1;
       while($done == 0){
          my $start = index($s, "(");
          my $end = $start;
@@ -81,58 +87,54 @@ user_function toPolynomial($ , $ ){
          # print $start," " ,$end,"\n";
          # print substr($s,$start+1,$end-$start-1);
          my $factor = substr($s,$start+1,$end-$start-1);
+         print "Factor: ",$factor,"\n";
+         $factor = toPolynomial($R,$factor);
          $s = substr($s,$end+1,length($s));
-         if(my($a) = $s =~ m/^\^(\d*)/){
-            $s = substr($s,length($a)+1,length($s));
+         if(my($a) = $s =~ m/^(\^\d*)/){
+            $s = substr($s,length($a),length($s));
+            $a = $a =~ m/^\^/ ? substr($a,1,length($a)) : $a;
             while($a>0){
-               push @prod, $factor;
+               $prod *= $factor;
                $a--;
             }
          } else {
-            push @prod, $factor;
+            $prod *= $factor;
          }
          # print "Remaining: ",$s,"\n";
          
-         if((index($s,"(")==-1) || (index($s,"+")<index($s,"(")) || (index($s,"-")<index($s,"("))){
+         if((index($s,"(")==-1) || (index($s,"+")<index($s,"(") && index($s,"+") > -1) || (index($s,"-")<index($s,"(") && index($s,"-")>-1)){
             $done = 1;
          } else {
             $start = index($s,"(");
-            push @prod, substr($s,0,$start);
+            $factor = substr($s,0,$start);
+            $factor = $factor =~ m/^\*/ ? substr($factor,1,length($factor)) : $factor;
+            $factor = $factor =~ m/\*$/ ? substr($factor,0,length($factor)-1) : $factor;
+            print "Factor: ",$factor,"\n";
+            $prod *= toPolynomial($R,$factor);
             $s = substr($s,$start,length($s));
          }
       }
-      my($prodrest) = $s =~ m/^\*?([^+^-]*)/;
+      my($prodrest) = $s =~ m/^\*?([^+-]*)/;
       if(length($prodrest) > 0){
-         if($prodrest =~ m/^\*.*/){
-            push @prod, substr($prodrest,1,length($prodrest));
-         } else {
-            push @prod, $prodrest;
-         }
-            $s = substr($s,length($prodrest),length($s));
+         $s = substr($s,length($prodrest),length($s));
+         $prodrest = $prodrest =~ m/^\*/ ? substr($prodrest,1,length($prodrest)) : $prodrest;
+         $prod *= toPolynomial($R, $prodrest);
       }
-      my($prodstart) = $beginning =~ m/([^+^-]*)\*?$/;
+      my($prodstart) = $beginning =~ m/([^+-]*)\*?$/;
       if(length($prodstart) > 0){
-         if($prodstart =~ m/.*\*$/){
-            push @prod, substr($prodstart,0,length($prodstart)-1);
-         } else {
-            push @prod, $prodstart;
-         }
-      $beginning = substr($beginning,0,length($beginning)-length($prodstart));
+         $beginning = substr($beginning,0,length($beginning)-length($prodstart));
+         $prodstart = $prodstart =~ m/\*$/ ? substr($prodstart,0,length($prodstart)-1) : $prodstart;
+         $prod *= toPolynomial($R, $prodstart);
       }
       # print "Remaining: ",$beginning," ",$s,"\n";
       # print "Start: ",$prodstart,"\n";
-      my $result = new Polynomial($R);
-      $result += 1;
-      foreach my $p (@prod){
-         # print "Factor: ",$p,"\n";
-         $result *= toPolynomial($R, $p);
-      }
+      my $result = $prod;
       if(length($beginning)>0){
-         if($beginning == "-"){
+         if($beginning eq "-"){
             $result = -$result;
          }
          if(length($beginning)>1){
-            if(substr(reverse($beginning),0,1)=="+"){
+            if(substr(reverse($beginning),0,1)eq"+"){
                $result = toPolynomial($R,substr($beginning,0,length($beginning)-1)) + $result;
             } else {
                $result = toPolynomial($R,substr($beginning,0,length($beginning)-1)) - $result;
@@ -140,7 +142,7 @@ user_function toPolynomial($ , $ ){
          }
       }
       if(length($s) > 1){
-         if(substr($s,0,1)=="+"){
+         if(substr($s,0,1) eq "+"){
             $result = $result + toPolynomial($R,substr($s,1,length($s)));
          } else {
             $result = $result - toPolynomial($R,substr($s,1,length($s)));
@@ -153,7 +155,7 @@ user_function toPolynomial($ , $ ){
       # String contains no brackets, but a +
       # print "String has +!\n";
       my($sum1,$op,$sum2) = $s =~ m/(.*)([+-]{1})(.*)/;
-      if($op == "+"){
+      if($op eq "+"){
          return(toPolynomial($R, $sum1) + toPolynomial($R, $sum2));
       } else {
          return(toPolynomial($R, $sum1) - toPolynomial($R, $sum2));
