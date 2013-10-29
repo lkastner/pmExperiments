@@ -66,6 +66,7 @@ user_function toPolynomial($ , $ ){
       my $done = 0;
       my $prod = new Polynomial($R);
       $prod += 1;
+      # print "Prod1: ",$prod,"\n";
       while($done == 0){
          my $start = index($s, "(");
          my $end = $start;
@@ -87,9 +88,11 @@ user_function toPolynomial($ , $ ){
          # print $start," " ,$end,"\n";
          # print substr($s,$start+1,$end-$start-1);
          my $factor = substr($s,$start+1,$end-$start-1);
-         #print "Factor: ",$factor,"\n";
-         $factor = toPolynomial($R,$factor);
+         # print "Factor: ",$factor,"\n";
+         $factor = new Polynomial(toPolynomial($R,$factor));
+         # print "Factor: ",$factor,"\n";
          $s = substr($s,$end+1,length($s));
+         # print "Prod2: ",$prod,"\n";
          if(my($a) = $s =~ m/^(\^\d*)/){
             $s = substr($s,length($a),length($s));
             $a = $a =~ m/^\^/ ? substr($a,1,length($a)) : $a;
@@ -98,8 +101,11 @@ user_function toPolynomial($ , $ ){
                $a--;
             }
          } else {
-            $prod *= $factor;
+            # print "No a.\n";
+            # print "I will multiply ",$prod," and ",$factor,"\n";
+            $prod = $prod * $factor;
          }
+         # print "Prod3: ",$prod,"\n";
          # print "Remaining: ",$s,"\n";
          
          if((index($s,"(")==-1) || (index($s,"+")<index($s,"(") && index($s,"+") > -1) || (index($s,"-")<index($s,"(") && index($s,"-")>-1)){
@@ -109,11 +115,14 @@ user_function toPolynomial($ , $ ){
             $factor = substr($s,0,$start);
             $factor = $factor =~ m/^\*/ ? substr($factor,1,length($factor)) : $factor;
             $factor = $factor =~ m/\*$/ ? substr($factor,0,length($factor)-1) : $factor;
-            #print "Factor: ",$factor,"\n";
-            $prod *= toPolynomial($R,$factor);
+            if(length($factor)>0){
+               #print "Factor: ",$factor,"\n";
+               $prod *= toPolynomial($R,$factor);
+            }
             $s = substr($s,$start,length($s));
          }
       }
+      # print "Prod so far: ",$prod,"\n";
       my($prodrest) = $s =~ m/^\*?([^+-]*)/;
       if(length($prodrest) > 0){
          $s = substr($s,length($prodrest),length($s));
