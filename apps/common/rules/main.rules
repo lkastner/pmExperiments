@@ -1,4 +1,4 @@
-user_function toPolynomial2($ , $ ){
+user_function toPolynomial($ , $ ){
    my($R, $s) = @_;
    # Initial check for bracket consistency:
    $s =~ s/\s//g;
@@ -21,11 +21,12 @@ user_function toPolynomial2($ , $ ){
 
 sub classify{
    my($R,$s,$stilda) = @_;
+   print "S:  ",$s,"\nST: ",$stilda,"\n";
    my $isSum = 0;
    my $isProd = 0;
    my $isMonomial = 0;
    my $hasBrackets = index($stilda,"(") > -1;
-   print "Hasbrackets: ",$hasBrackets,"\n";
+   # print "Hasbrackets: ",$hasBrackets,"\n";
    if(!$hasBrackets){
       if((index($stilda,"+") > -1) || (index($stilda,"-") > -1)){
          $isSum = 1;
@@ -33,7 +34,37 @@ sub classify{
          $isMonomial = 1;
       }
    } else {
-
+      my $level = 0;
+      my $rest = $stilda;
+      my $done = 0;
+      while(!$done){
+         if($level == 0){
+            if($rest =~ m/^[^\(\)]*[\+\-]/){
+               $done = 1;
+               $isSum = 1;
+            } elsif($rest =~ m/^[^\(\)\+\-]*$/) {
+               $done = 1;
+               $isProd = 1;
+            } else {
+               if(my($nr) = $rest =~ m/^[^\(\)\+\-]*\((.*)$/){
+                  $level++;
+                  $rest = $nr;
+               } elsif ($rest =~ m/^[^\(\)\+\-]*\)/){
+                  die "Too many closing brackets.";
+               }
+            }
+         } else {
+            if(my($nr) = $rest =~ m/^[^\(\)]*\)(.*)/){
+               $rest = $nr;
+               $level--;
+            } elsif(my($nr) = $rest =~ m/^[^\(\)]*\((.*)/){
+               $rest = $nr;
+               $level++;
+            } else {
+               die "Brackets inconsistent.";
+            }
+         }
+      }
    }
    if($isSum){
       print $s," is a sum.\n";
@@ -43,7 +74,7 @@ sub classify{
       return parseMonomial($R,$s,$stilda);
    } elsif($isProd){
       print $s," is a product.\n";
-
+      return parseProd($R,$s,$stilda);
    }
 }
 
@@ -51,6 +82,54 @@ sub parseSum{
    my($R,$s,$stilda,$hasBrackets) = @_;
    my $result = new Polynomial($R);
    if($hasBrackets){
+      while(length($s)>0){
+         my($op) = $stilda =~ m/^([+-]?)/;
+         my $pos = length($op);
+         my $level = 0;
+         my $done = 0;
+         while(!$done){
+            my $rest = substr($stilda,$pos,length($stilda));
+            print "Rest: ",$rest,"\n";
+            if($level == 0){
+               if(my($tl) = $rest =~ m/^([^\(]*)[\+\-]/){
+                  $done = 1;
+                  $pos += length($tl);
+               } elsif( $rest =~ m/^[^\+\-\(]*\)/){
+                  die "Brackets are inconsistent.";
+               } elsif ( $rest =~ m/^[^\+\-\(\)]*$/){
+                  $done = 1;
+                  $pos += length($rest);
+               } else {
+                  $level++;
+                  $pos += index($rest,"(")+1;
+               }
+            } else {
+               if($rest =~ m/^[^\(\)]*\(/){
+                  $level++;
+                  $pos += index($rest,"(")+1;
+               } elsif ($rest =~ m/^[^\(\)]*\)/) {
+                  $level--;
+                  $pos += index($rest,")")+1;
+               } else {
+                  die "Brackets are inconsistent.";
+               }
+            }
+         }
+         # print substr($s,0,$pos-1);
+         if($op eq "+"){
+            $result += classify($R, substr($s,1,$pos-1), substr($stilda,1,$pos-1));
+            $s = substr($s,$pos,length($s));
+            $stilda = substr($stilda,$pos,length($s));
+         } elsif($op eq "-") {
+            $result -= classify($R, substr($s,1,$pos-1), substr($stilda,1,$pos-1));
+            $s = substr($s,$pos,length($s));
+            $stilda = substr($stilda,$pos,length($s));
+         } else {
+            $result += classify($R, substr($s,0,$pos), substr($stilda,0,$pos));
+            $s = substr($s,$pos,length($s));
+            $stilda = substr($stilda,$pos,length($s));
+         }
+      }
 
    } else {
       while(length($s)>0){
@@ -76,6 +155,62 @@ sub parseProd{
    # We can assume that $hasBrackets evaluates to true, since we would have
    # gone into monomial else.
    my($R,$s,$stilda) = @_;
+   my $result = new Monomial($R);
+   my $level = 0;
+   my $pos = 0;
+   my $rest = $stilda;
+   while(length($s)>0){
+      if($level == 0){
+         if($pos > 0){
+            my $f = substr($s,1,$pos-2);
+            my $ftilda = substr($stilda,1,$pos-2);
+            my $factor = classify($R,$f,$ftilda);
+            my $totallength = $pos;
+            $s = substr($s,$totallength,length($s));
+            $stilda = substr($stilda,$totallength,length($stilda));
+            my($hat,$pow,$star) = $stilda =~ m/^(\^?)(\d*)(\*?)/;
+            print "HPS: ",$hat,$pow,$star,"\n";
+            if($pow > 0){
+               while($pow>0){
+                  $result = $factor * $result;
+                  $pow--;
+               }
+            } else {
+               $result = $factor * $result;
+            }
+            $totallength = length($hat.$pow.$star);
+            $s = substr($s,$totallength,length($s));
+            $stilda = substr($stilda,$totallength,length($stilda));
+            $rest = $stilda;
+         }
+         my($star1,$factor,$star2) = $stilda =~ m/^(\*?)([^\(\)]*[^\*\(\)])(\*?)/;
+         if(length($factor)>0){
+            $result = classify($R,substr($s,0,length($factor)),substr($stilda,0,length($factor))) * $result;
+            my $totallength = length($star1.$factor.$star2);
+            $s = substr($s,$totallength,length($s));
+            $stilda = substr($stilda,$totallength,length($stilda));
+            $rest = $stilda;
+         }
+         if($stilda =~ m/^\(/){
+            $pos = 1;
+            $rest = substr($stilda,$pos,length($stilda));
+            $level++;
+         }
+      } else {
+         if($rest =~ m/^[^\(\)]*\(/){
+            $level++;
+            $pos += index($rest,"(")+1;
+            $rest = substr($stilda,$pos,length($stilda));
+         } elsif ($rest =~ m/^[^\(\)]*\)/) {
+            $level--;
+            $pos += index($rest,")")+1;
+            $rest = substr($stilda,$pos,length($stilda));
+         } else {
+            die "Brackets are inconsistent. $rest";
+         }
+      }
+   }
+   return $result;
 }
 
 sub parseMonomial{
@@ -83,6 +218,16 @@ sub parseMonomial{
    # Sanity check:
    ($s !~ m/^\*(.*)/) or die "Incorrect monomial form.";
    ($s !~ m/(.*)\*$/) or die "Incorrect monomial form.";
+   if( $stilda !~ m/m/){
+      if(index($stilda,"/")>-1){
+         my($a,$b) = $stilda =~ m/^(\d*)\/(\d*)/;
+         # print $a," ",$b,"\n";
+         return new Rational($a,$b);
+      } else {
+         return $stilda;
+      }
+      
+   }
    my %varMap = ();
    my @var = $R->variables;
    my $i = 0;
@@ -105,7 +250,7 @@ sub parseMonomial{
       my $totallength = length($coef)+length($star1)+length($varlength)+length($hat)+length($pow)+length($star2);
       $s = substr($s,$totallength,length($s));
       $stilda = substr($stilda,$totallength,length($stilda));
-      print "S: ",$s,"\n";
+      # print "S: ",$s,"\n";
       if($coef){
          if(index($coef,"/")>-1){
             my($a,$b) = $coef =~ m/^(\d*)\/(\d*)/;
