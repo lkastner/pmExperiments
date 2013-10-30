@@ -1,78 +1,125 @@
 user_function toPolynomial2($ , $ ){
    my($R, $s) = @_;
    # Initial check for bracket consistency:
-   my $level = 0;
-   my $issum = 0;
-   my $hasbrackets = 0;
-   
-   my @split = split(//,$s);
-   my $oldc = 0;
-   foreach my $c (@split){
-      if($c eq "("){
-         if($oldc eq "_"){
-            $hasbrackets = 1;
+   $s =~ s/\s//g;
+   index($s, "@") == -1 or die "Forbidden character \"@\" used!";
+   my @vars = $R->variables;
+   my $stilda = $s;
+   foreach my $var (@vars){
+      my $varstring = $var."";
+      my $replacement = "m".("@" x (length($varstring)-1));
+      $varstring = quotemeta($varstring);
+      # print "Var: ",$varstring,"\nReplacement: ",$replacement,"\n";
+      # print "Before: ",$stilda,"\n";
+      $stilda =~ s/$varstring/$replacement/g;
+      # print "After: ",$stilda,"\n";
+   }
+   $stilda =~ m/^[0123456789\/\*\^\-\+@\(\)m]*$/ or die "Input error: ".$stilda.".";
+   print "S:  ",$s,"\nST: ",$stilda,"\n";
+   return classify($R,$s,$stilda);
+}
+
+sub classify{
+   my($R,$s,$stilda) = @_;
+   my $isSum = 0;
+   my $isProd = 0;
+   my $isMonomial = 0;
+   my $hasBrackets = index($stilda,"(") > -1;
+   print "Hasbrackets: ",$hasBrackets,"\n";
+   if(!$hasBrackets){
+      if((index($stilda,"+") > -1) || (index($stilda,"-") > -1)){
+         $isSum = 1;
+      } else {
+         $isMonomial = 1;
+      }
+   } else {
+
+   }
+   if($isSum){
+      print $s," is a sum.\n";
+      return parseSum($R,$s,$stilda,$hasBrackets);
+   } elsif($isMonomial){
+      print $s," is a monomial.\n";
+      return parseMonomial($R,$s,$stilda);
+   } elsif($isProd){
+      print $s," is a product.\n";
+
+   }
+}
+
+sub parseSum{
+   my($R,$s,$stilda,$hasBrackets) = @_;
+   my $result = new Polynomial($R);
+   if($hasBrackets){
+
+   } else {
+      while(length($s)>0){
+         my($op,$monlength) = $stilda =~ m/^([+-]?)([^+-]*)/;
+         if($op){
+            if($op eq "+"){
+               $result += parseMonomial($R,substr($s,1,length($monlength)),$monlength);
+            } else {
+               $result -= parseMonomial($R,substr($s,1,length($monlength)),$monlength);
+            }
+         } else {
+            $result += parseMonomial($R,substr($s,0,length($monlength)),$monlength);
          }
-         $level++;
+         my $totallength = length($op) + length($monlength);
+         $s = substr($s,$totallength,length($s));
+         $stilda = substr($stilda,$totallength,length($stilda));
       }
-      if($c eq ")"){
-         $level--;
-      }
-      $level >= 0 or die "Brackets are inconsistent.";
-      if(($level == 0) && (($c eq "+" || ($c eq "-")){
-         $issum = 1;
-      }
-      $oldc = $c;
    }
-   $level == 0 or die "Brackets are inconsistent.";
-   
-   if($issum == 1){
-      return sum2poly($R, $s);
-   } elsif(($issum == 0) && ($hasbrackets == 1)){
-      return prod2poly($R, $s);
-   } elsif(($issum == 0) && ($hasbrackets == 0)){
-      return parseMonomial($R, $s);
-   }
+   return $result;
+}
+
+sub parseProd{
+   # We can assume that $hasBrackets evaluates to true, since we would have
+   # gone into monomial else.
+   my($R,$s,$stilda) = @_;
 }
 
 sub parseMonomial{
-   my($R, $s) = @_;
-
-}
-
-sub prod2poly {
-   my($R, $s) = @_;
-
-}
-
-sub sum2poly {
-   my($R, $s) = @_;
-   my $result = new Polynomial($R);
-   my $level = 0;
-   my @split = split(//,$s);
-   if(!(($split[0] eq "-") || ($split[0] eq "+"))){
-      unshift @split, "+";
+   my($R,$s,$stilda) = @_;
+   # Sanity check:
+   ($s !~ m/^\*(.*)/) or die "Incorrect monomial form.";
+   ($s !~ m/(.*)\*$/) or die "Incorrect monomial form.";
+   my %varMap = ();
+   my @var = $R->variables;
+   my $i = 0;
+   foreach my $v (@var){
+      my $varstring = $v."";
+      $varMap{$varstring} = $i;
+      $i++;
    }
-   $sign = pop @split;
-   $term = "";
-   foreach my $c (@split){
-      if($c eq "("){
-         $level++;
+   my $exp = new Vector<Int>($R->n_vars);
+   my $totalcoef = 1;
+   while(length($s)>0){
+      my($coef,$star1,$varlength,$hat,$pow,$star2) = $stilda =~ m/^(\d*\/?\d*)(\*?)(m@*)(\^?)(\d*)(\*?)/;
+      # print $coef,$star1,$varlength,$hat,$pow,$star2,"\n";
+      my $varstring = substr($s,0,length($varlength));
+      if($pow){
+         $exp->[$varMap{$varstring}] += $pow;
+      } else {
+         $exp->[$varMap{$varstring}] ++;
       }
-      if($c eq ")"){
-         $level--;
-      }
-      if($level == 0){
-         if(($c eq "+")|| ($c eq "-")){
-            if($sign eq "+"){
-               
-            } else {
-
-            }
-
+      my $totallength = length($coef)+length($star1)+length($varlength)+length($hat)+length($pow)+length($star2);
+      $s = substr($s,$totallength,length($s));
+      $stilda = substr($stilda,$totallength,length($stilda));
+      print "S: ",$s,"\n";
+      if($coef){
+         if(index($coef,"/")>-1){
+            my($a,$b) = $coef =~ m/^(\d*)\/(\d*)/;
+            # print $a," ",$b,"\n";
+            $totalcoef *= new Rational($a,$b);
+         } else {
+            $totalcoef *= $coef;
          }
       }
-      $term .= $c; 
    }
-
+   my $result = new Monomial($exp,$R);
+   if($totalcoef != 1){
+      return $totalcoef*$result;
+   } else {
+      return $result;
+   }
 }
-
