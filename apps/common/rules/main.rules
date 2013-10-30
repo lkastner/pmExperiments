@@ -1,0 +1,78 @@
+user_function toPolynomial2($ , $ ){
+   my($R, $s) = @_;
+   # Initial check for bracket consistency:
+   my $level = 0;
+   my $issum = 0;
+   my $hasbrackets = 0;
+   
+   my @split = split(//,$s);
+   my $oldc = 0;
+   foreach my $c (@split){
+      if($c eq "("){
+         if($oldc eq "_"){
+            $hasbrackets = 1;
+         }
+         $level++;
+      }
+      if($c eq ")"){
+         $level--;
+      }
+      $level >= 0 or die "Brackets are inconsistent.";
+      if(($level == 0) && (($c eq "+" || ($c eq "-")){
+         $issum = 1;
+      }
+      $oldc = $c;
+   }
+   $level == 0 or die "Brackets are inconsistent.";
+   
+   if($issum == 1){
+      return sum2poly($R, $s);
+   } elsif(($issum == 0) && ($hasbrackets == 1)){
+      return prod2poly($R, $s);
+   } elsif(($issum == 0) && ($hasbrackets == 0)){
+      return parseMonomial($R, $s);
+   }
+}
+
+sub parseMonomial{
+   my($R, $s) = @_;
+
+}
+
+sub prod2poly {
+   my($R, $s) = @_;
+
+}
+
+sub sum2poly {
+   my($R, $s) = @_;
+   my $result = new Polynomial($R);
+   my $level = 0;
+   my @split = split(//,$s);
+   if(!(($split[0] eq "-") || ($split[0] eq "+"))){
+      unshift @split, "+";
+   }
+   $sign = pop @split;
+   $term = "";
+   foreach my $c (@split){
+      if($c eq "("){
+         $level++;
+      }
+      if($c eq ")"){
+         $level--;
+      }
+      if($level == 0){
+         if(($c eq "+")|| ($c eq "-")){
+            if($sign eq "+"){
+               
+            } else {
+
+            }
+
+         }
+      }
+      $term .= $c; 
+   }
+
+}
+
