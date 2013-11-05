@@ -51,166 +51,31 @@ user_function testing(Cone, Vector, Vector){
 
 }
 
-# user_function toPolynomial($ , $ ){
-#    my($R, $s) = @_;
-#    # Remove white spaces.
-#    $s =~ s/\s//g;
-#    # If we get the empty string, just return 0.
-#    if(length($s) == 0){
-#       return new Polynomial($R);
-#    }
-#    if(index($s, "(")!=-1){
-#       # print "String has brackets!\n";
-#       my $beginning = substr($s,0,index($s, "("));
-#       # print "Beginning: ",$beginning,"\n";
-#       $s = substr($s,index($s, "("),length($s));
-#       my $done = 0;
-#       my $prod = new Polynomial($R);
-#       $prod += 1;
-#       # print "Prod1: ",$prod,"\n";
-#       while($done == 0){
-#          my $start = index($s, "(");
-#          my $end = $start;
-#          my $rest = substr($s,$start+1,length($s));
-#          # print $rest,"\n";
-#          my $level = 1;
-#          while($level > 0){
-#             if((index($rest,"(") < index($rest,")")) && (index($rest,"(")>-1)){
-#                $level++;
-#                $end += index($rest,"(")+1;
-#                $rest = substr($rest,index($rest,"(")+1,length($rest));
-#   } else {
-#                $level--;
-#                $end += index($rest,")")+1;
-#                $rest = substr($rest,index($rest,")")+1,length($rest));
-#             }
-#             # print $rest,"\n";
-#          }
-#          # print $start," " ,$end,"\n";
-#          # print substr($s,$start+1,$end-$start-1);
-#          my $factor = substr($s,$start+1,$end-$start-1);
-#          # print "Factor: ",$factor,"\n";
-#          $factor = new Polynomial(toPolynomial($R,$factor));
-#          # print "Factor: ",$factor,"\n";
-#          $s = substr($s,$end+1,length($s));
-#          # print "Prod2: ",$prod,"\n";
-#          if(my($a) = $s =~ m/^(\^\d*)/){
-#             $s = substr($s,length($a),length($s));
-#             $a = $a =~ m/^\^/ ? substr($a,1,length($a)) : $a;
-#             while($a>0){
-#                $prod *= $factor;
-#                $a--;
-#             }
-#          } else {
-#             # print "No a.\n";
-#             # print "I will multiply ",$prod," and ",$factor,"\n";
-#             $prod = $prod * $factor;
-#          }
-#          # print "Prod3: ",$prod,"\n";
-#          # print "Remaining: ",$s,"\n";
-#          
-#          if((index($s,"(")==-1) || (index($s,"+")<index($s,"(") && index($s,"+") > -1) || (index($s,"-")<index($s,"(") && index($s,"-")>-1)){
-#             $done = 1;
-#          } else {
-#             $start = index($s,"(");
-#             $factor = substr($s,0,$start);
-#             $factor = $factor =~ m/^\*/ ? substr($factor,1,length($factor)) : $factor;
-#             $factor = $factor =~ m/\*$/ ? substr($factor,0,length($factor)-1) : $factor;
-#             if(length($factor)>0){
-#                #print "Factor: ",$factor,"\n";
-#                $prod *= toPolynomial($R,$factor);
-#             }
-#             $s = substr($s,$start,length($s));
-#          }
-#       }
-#       # print "Prod so far: ",$prod,"\n";
-#       my($prodrest) = $s =~ m/^\*?([^+-]*)/;
-#       if(length($prodrest) > 0){
-#          $s = substr($s,length($prodrest),length($s));
-#          $prodrest = $prodrest =~ m/^\*/ ? substr($prodrest,1,length($prodrest)) : $prodrest;
-#          $prod *= toPolynomial($R, $prodrest);
-#       }
-#       my($prodstart) = $beginning =~ m/([^+-]*)\*?$/;
-#       if(length($prodstart) > 0){
-#          $beginning = substr($beginning,0,length($beginning)-length($prodstart));
-#          $prodstart = $prodstart =~ m/\*$/ ? substr($prodstart,0,length($prodstart)-1) : $prodstart;
-#          $prod *= toPolynomial($R, $prodstart);
-#       }
-#       # print "Remaining: ",$beginning," ",$s,"\n";
-#       # print "Start: ",$prodstart,"\n";
-#       my $result = $prod;
-#       if(length($beginning)>0){
-#          if($beginning eq "-"){
-#             $result = -$result;
-#          }
-#          if(length($beginning)>1){
-#             if(substr(reverse($beginning),0,1)eq"+"){
-#                $result = toPolynomial($R,substr($beginning,0,length($beginning)-1)) + $result;
-#             } else {
-#                $result = toPolynomial($R,substr($beginning,0,length($beginning)-1)) - $result;
-#             }
-#          }
-#       }
-#       if(length($s) > 1){
-#          if(substr($s,0,1) eq "+"){
-#             $result = $result + toPolynomial($R,substr($s,1,length($s)));
-#          } else {
-#             $result = $result - toPolynomial($R,substr($s,1,length($s)));
-#          }
-#       }
-#       
-#       return $result;
-# 
-#    } elsif ((index($s, "+") != -1) || (index($s, "-") != -1)){
-#       # String contains no brackets, but a +
-#       # print "String has +!\n";
-#       my($sum1,$op,$sum2) = $s =~ m/(.*)([+-]{1})(.*)/;
-#       if($op eq "+"){
-#          return(toPolynomial($R, $sum1) + toPolynomial($R, $sum2));
-#       } else {
-#          return(toPolynomial($R, $sum1) - toPolynomial($R, $sum2));
-#       }
-#    } elsif (index($s, "*") != -1){
-#       # String contains no brackets or +-, but a *
-#       # print "String has *!\n";
-#       my($prod1,$prod2) = $s =~ m/(.*)\*{1}(.*)/;
-#       return(toPolynomial($R, $prod1) * toPolynomial($R, $prod2));
-#    } else {
-#       # String is a number:
-#       if(my($a,$b) = $s =~ m/^(\d+)\/(\d+)$/){
-#          return new Rational($a,$b);
-#       } elsif (my($a) = $s =~m/^(\d+)$/){
-#          return new Integer($a);
-#       }
-#       # String is a monomial:
-#       # Number the variables
-#       my %string2variable = ();
-#       my @var = $R->variables;
-#       my $i = 0;
-#       foreach my $v (@var){
-#          my $string = $v."";
-#          $string2variable{$string} = $i;
-#          $i++;
-#       }
-#       # Initialize result, extract coefficient
-#       my $result = new Polynomial($R);
-#       my($coef, $rest) = $s =~ m/^(\d*\/?\d*)(\D.*)$/;
-#       if(length($coef) == 0){
-#          $result += 1;
-#       } else {
-#          $result += toPolynomial($R, $coef);
-#       }
-#       # Extract variables
-#       foreach my $mon (keys %string2variable){
-#          if(index($rest, $mon) != -1){
-#             my($exp) = $rest =~ m/$mon\^?(\d*)/;
-#             if(length($exp) == 0){
-#                $result *= $var[$string2variable{$mon}];
-#             } else {
-#                $result *= ($var[$string2variable{$mon}]^$exp);
-#             }
-#          }
-#       }
-#       return $result;
-#    }
-# }
+user_function spoly_variant( $ , $ , $ ){
+   my($r, $f, $g) = @_;
+   my $Nf = newton($f);
+   my $Ng = newton($g);
+   my $matf = new Matrix($f->coefficients_as_vector | (new Matrix<Rational>($f->monomials_as_matrix)));
+   my $matg = new Matrix($g->coefficients_as_vector | (new Matrix<Rational>($g->monomials_as_matrix)));
+   my @colf = ();
+   foreach my $v (@$matf){
+      foreach my $w (@{$Nf->VERTICES}){
+         if($v->slice(1) == $w->slice(1)){
+            push @colf, $v;
+         }
+      }
+   }
+   my $multf = new Matrix(@colf);
+   my $kf = new Polynomial((new Matrix<Int>($multf->minor(All,~[0]))), $multf->col(0),$r);
+   my @colg = ();
+   foreach my $v (@$matg){
+      foreach my $w (@{$Ng->VERTICES}){
+         if($v->slice(1) == $w->slice(1)){
+            push @colg, $v;
+         }
+      }
+   }
+   my $multg = new Matrix(@colg);
+   my $kg = new Polynomial((new Matrix<Int>($multg->minor(All,~[0]))), $multg->col(0),$r);
+   return $kg * $f - $kf * $g;
+}
