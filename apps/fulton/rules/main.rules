@@ -30,7 +30,7 @@ INCLUDE
 
 user_function testing(Cone, Vector, Vector){
    my($c, $v1, $v2) = @_;
-   my $H = $c->HILBERT_BASIS;
+   my $H = $c->HILBERT_BASIS_GENERATORS;
    my $F = $c->FACETS;
    if($v1->dim != $F->rows){ die "Wrong number of entries.";}
 
@@ -40,8 +40,8 @@ user_function testing(Cone, Vector, Vector){
    my $C1 = new Cone($P1);
    my $C2 = new Cone($P2);
 
-   my $gen1 = new Matrix( grep($_->[0] == 1, @{$C1->HILBERT_BASIS}));
-   my $gen2 = new Matrix( grep($_->[0] == 1, @{$C2->HILBERT_BASIS}));
+   my $gen1 = new Matrix( grep($_->[0] == 1, @{$C1->HILBERT_BASIS_GENERATORS}));
+   my $gen2 = new Matrix( grep($_->[0] == 1, @{$C2->HILBERT_BASIS_GENERATORS}));
 
    $gen1 = $gen1->minor(All, ~[0]);
    $gen2 = $gen2->minor(All, ~[0]);
