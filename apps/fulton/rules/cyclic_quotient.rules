@@ -124,7 +124,7 @@ object CyclicQuotient {
       my $q = $cq->Q;
       for(my $i = 1; $i<$n; $i++){
          my $gc = new Cone(INPUT_RAYS=>[[$n,$i*$n,$i*$q],[0,$n,$q],[0,0,1]]);
-         my $genD = new Matrix(grep($_->[0]==1, @{$gc->HILBERT_BASIS_GENERATORS}));
+         my $genD = new Matrix(grep($_->[0]==1, @{$gc->HILBERT_BASIS_GENERATORS->[0]}));
          $genD = $genD->minor(All,~[0]);
          
          my @sorted = ();
@@ -222,7 +222,7 @@ object CyclicQuotient {
       my $n = $cq->N;
       my $q = $cq->Q;
       my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
-      my $H = $c->HILBERT_BASIS_GENERATORS;
+      my $H = $c->HILBERT_BASIS_GENERATORS->[0];
       my @result = ();
 
       load_singular_library("homolog.lib");
@@ -336,7 +336,7 @@ object CyclicQuotient {
       my $n = $cq->N;
       my $q = $cq->Q;
       my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
-      my $H = $c->HILBERT_BASIS_GENERATORS;
+      my $H = $c->HILBERT_BASIS_GENERATORS->[0];
 
       my $singular = "LIB \"homolog.lib\";\n";
       $singular .= "LIB \"toric.lib\";\n";

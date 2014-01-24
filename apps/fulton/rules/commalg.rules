@@ -37,7 +37,7 @@ object NormalToricVariety {
       print "New vertices:\n",$Dp,"\n";
 
       my $dual_cone = new Cone(INPUT_RAYS=>$c->FACETS);
-      my $H = $dual_cone->HILBERT_BASIS_GENERATORS;
+      my $H = $dual_cone->HILBERT_BASIS_GENERATORS->[0];
 
       my $Dgen = new Matrix(map(find_positive_combination($_,$H,$c->RAYS),@$Dp));
       print "Check:\n",transpose($H)*transpose($Dgen);
@@ -123,7 +123,7 @@ object NormalToricVariety {
       # print "New vertices:\n",$D2p,"\n";
 
       my $dual_cone = new Cone(INPUT_RAYS=>$c->FACETS);
-      my $H = $dual_cone->HILBERT_BASIS_GENERATORS;
+      my $H = $dual_cone->HILBERT_BASIS_GENERATORS->[0];
 
       my $D1gen = new Matrix(map(find_positive_combination($_,$H,$c->RAYS),@$D1p));
       my $D2gen = new Matrix(map(find_positive_combination($_,$H,$c->RAYS),@$D2p));
@@ -205,7 +205,7 @@ object NormalToricVariety {
 user_function lower_lattice_points(Polytope){
    my ($P) = @_;
    my $C = new Cone($P);
-   my $H = $C->HILBERT_BASIS_GENERATORS;
+   my $H = $C->HILBERT_BASIS_GENERATORS->[0];
    return new Matrix(grep($_->[0]==1,@$H));
 }
 
@@ -270,7 +270,7 @@ sub move_inside{
 ############################################
 user_function ext_1(Cone, Vector, Vector){
    my($c,$d1,$d2)=@_;
-   my $H = $c->HILBERT_BASIS_GENERATORS;
+   my $H = $c->HILBERT_BASIS_GENERATORS->[0];
    my $i = new Polytope(INEQUALITIES=>$d1|$c->FACETS);
    my $j = new Polytope(INEQUALITIES=>$d2|$c->FACETS);
 
