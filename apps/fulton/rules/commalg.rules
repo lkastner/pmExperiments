@@ -383,6 +383,28 @@ user_function ext_1(Cone, Vector, Vector){
    print "Ext(1,syz(i),syz(j));\n";
 }
 
+user_function vector_to_binomial_string(Vector, @ ){
+   my($input, @vars) = @_;
+   my $positive = new Vector($input->dim);
+   my $negative = new Vector($input->dim);
+   for(my $i=0; $i<$input->dim; $i++){
+      $positive = $input->[$i] > 0 ? $input->[$i] : 0;
+      $negative = $input->[$i] < 0 ? -$input->[$i] : 0;
+   }
+   return vector_to_monomial_string($positive, @vars)."-".vector_to_monomial_string($negative, @vars);
+}
+
+user_function vector_to_monomial_string(Vector, @ ){
+   my($input, @vars) = @_;
+   my $result = "1";
+   for(my $i=0; $i<$input->dim; $i++){
+      if($input->[$i] > 0){
+         $result .= "*".$vars[$i]."^".$input->[$i];
+      }
+   }
+   return $result;
+}
+
 ###########################################################
 ## Computing the Ext-graph
 ###########################################################
