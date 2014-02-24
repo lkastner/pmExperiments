@@ -238,6 +238,20 @@ user_function find_positive_combination(Vector, Matrix,Matrix){
    return $result;
 }
 
+# Returns a matrix that projects a cone into a lower dimensional space if it is
+# not full-dimensional.
+user_function find_nice_projection(Cone){
+   my($C) = @_;
+   if($C->AMBIENT_DIM == $C->DIM){
+      return unit_matrix($C->AMBIENT_DIM);
+   } else {
+      my @H = hermite_normal_form($C->HILBERT_BASIS);
+      my $changemat = dense($H[1]);
+      my $projection = unit_matrix($C->DIM)/zero_matrix($C->AMBIENT_DIM-$C->DIM, $C->DIM);
+      return $changemat*$projection;
+   }
+}
+
 # Return a vector that moves q into p.
 # Note that we assume equality of the tail cones but do not check it.
 sub move_inside{
