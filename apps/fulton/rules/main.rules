@@ -21,12 +21,14 @@ IMPORT
    matroid
 
 INCLUDE
+   utilities.rules
    milnor.rules
    commalg.rules
    cyclic_quotient.rules
    tropical.rules
    downgrading.rules
    deformations.rules
+   tor.rules
 
 user_function testing(Cone, Vector, Vector){
    my($c, $v1, $v2) = @_;
