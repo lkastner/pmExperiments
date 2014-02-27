@@ -1,0 +1,127 @@
+
+object NormalToricVariety {
+   
+   property SINGULAR_TORIC_RING : String;
+
+   rule SINGULAR_TORIC_RING : MONOID {
+      my $monoid = $this->MONOID;
+      my $ringname = get_random_string();
+      my @variables = map("x(".$_.")",1..$monoid->HILBERT_BASIS->rows);
+      my $toric_ideal = toric_ideal_as_string($monoid, @variables);
+      singular_eval("ring R_".$ringname." = 0,(".join(",",@variables)."),dp;");
+      singular_eval("ideal toric_ideal = ".$toric_ideal.";");
+      singular_eval("qring r_".$ringname." = std(toric_ideal);");
+      $this->SINGULAR_TORIC_RING = $ringname;
+   }
+   precondition : AFFINE;
+
+   object TDivisor {
+      
+      property SINGULAR_IDEAL : String;
+
+      property SINGULAR_SYZYGIES : String;
+
+   }
+
+   rule DIVISOR.SINGULAR_SYZYGIES : SINGULAR_TORIC_RING, DIVISOR.SINGULAR_IDEAL{
+      my $ringname = $this->SINGULAR_TORIC_RING;
+      my $idealname = $this->DIVISOR->SINGULAR_IDEAL;
+      singular_eval("setring r_".$ringname.";");
+      singular_eval("module syz_".$idealname." = syz(div_".$idealname.");");
+      $this->DIVISOR->SINGULAR_SYZYGIES = $idealname;
+   }
+   precondition : AFFINE;
+
+   rule DIVISOR.SINGULAR_IDEAL : SINGULAR_TORIC_RING, MONOID, DIVISOR.MODULE_GENERATORS{
+      my $ringname = $this->SINGULAR_TORIC_RING;
+      my $generators = $this->DIVISOR->MODULE_GENERATORS;
+      # print "Gens: ",$generators,"\n";
+      my $monoid = $this->MONOID;
+      my $mod_vector = find_vector_moving_points_inside_cone($generators, $monoid);
+      # print "Mod vector: ",$mod_vector,"\n";
+      my @variables = map("x(".$_.")",1..$monoid->HILBERT_BASIS->rows);
+      my $mod_gens = new Matrix(map($mod_vector + $_, @$generators));
+      my $mod_gens_monomial_exponents = represent_vectors_in_Hilbert_basis($mod_gens, $monoid->HILBERT_BASIS, $monoid->FACETS);
+      my @mod_gens_monomials = map(vector_to_monomial_string($_,@variables), @$mod_gens_monomial_exponents);
+      my $idealname = get_random_string();
+      singular_eval("setring r_".$ringname.";");
+      singular_eval("ideal div_".$idealname." = ".join(",",@mod_gens_monomials).";");
+      singular_eval("div_".$idealname." = std(div_".$idealname.");");
+      $this->DIVISOR->SINGULAR_IDEAL = $idealname;
+   }
+   precondition : AFFINE;
+
+   user_method singular_exti_dimension( $ , TDivisor, TDivisor){
+      my $toric_variety = $_[0];
+      my $i = $_[1];
+      my $divisor1 = $_[2];
+      my $divisor2 = $_[3];
+      my $ringname = $toric_variety->SINGULAR_TORIC_RING;
+      my $syzygies1 = $divisor1->SINGULAR_SYZYGIES;
+      my $syzygies2 = $divisor2->SINGULAR_SYZYGIES;
+      singular_eval("setring r_".$ringname.";");
+      load_singular_library("homolog.lib");
+      singular_eval("module M = Ext(".$i.", syz_".$syzygies1.", syz_".$syzygies2.");");
+      singular_eval("M = std(M);");
+      singular_eval("int d = vdim(M);");
+      singular_eval("int vd = vdim(M);");
+      return (singular_get_var("d"), singular_get_var("vd"));
+   }
+   
+   user_method singular_tori_dimension( $ , TDivisor, TDivisor){
+      my $toric_variety = $_[0];
+      my $i = $_[1];
+      my $divisor1 = $_[2];
+      my $divisor2 = $_[3];
+      my $ringname = $toric_variety->SINGULAR_TORIC_RING;
+      my $syzygies1 = $divisor1->SINGULAR_SYZYGIES;
+      my $syzygies2 = $divisor2->SINGULAR_SYZYGIES;
+      singular_eval("setring r_".$ringname.";");
+      load_singular_library("homolog.lib");
+      singular_eval("module M = Tor(".$i.", syz_".$syzygies1.", syz_".$syzygies2.");");
+      singular_eval("M = std(M);");
+      singular_eval("int d = vdim(M);");
+      singular_eval("int vd = vdim(M);");
+      return (singular_get_var("d"), singular_get_var("vd"));
+   }
+
+}
+
+object CyclicQuotient{
+
+   user_method singular_ext1_matrix(){
+      my $cqs = $_[0];
+      my $canonical_divisor = new Vector(-1, -1);
+      my @divisors= ();
+      my @canonical_minus_divisors= ();
+      for(my $i=1; $i<=$cqs->N; $i++){
+         my $divisor_coefficients = new Vector(-$i, 0);
+         push @divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$divisor_coefficients);
+         push @canonical_minus_divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$canonical_divisor - $divisor_coefficients);
+      }
+      my @result = ();
+      foreach my $divisor (@divisors){
+         my @ext_vector = map((new Vector($cqs->singular_exti_dimension(1, $divisor, $_))),@canonical_minus_divisors);
+         my $ext_vector = new Vector(map($_->[1], @ext_vector));
+         push @result, $ext_vector;
+      }
+      return new Matrix(@result);
+   }
+   
+   user_method singular_tor1_matrix(){
+      my $cqs = $_[0];
+      my @divisors= ();
+      for(my $i=1; $i<=$cqs->N; $i++){
+         my $divisor_coefficients = new Vector(-$i, 0);
+         push @divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$divisor_coefficients);
+      }
+      my @result = ();
+      foreach my $divisor (@divisors){
+         my @tor_vector = map((new Vector($cqs->singular_tori_dimension(1, $divisor, $_))),@divisors);
+         my $tor_vector = new Vector(map($_->[1], @tor_vector));
+         push @result, $tor_vector;
+      }
+      return new Matrix(@result);
+   }
+
+}
