@@ -65,7 +65,7 @@ object NormalToricVariety {
       singular_eval("M = std(M);");
       singular_eval("int d = vdim(M);");
       singular_eval("int vd = vdim(M);");
-      return (singular_get_var("d"), singular_get_var("vd"));
+      return new Vector(singular_get_var("d"), singular_get_var("vd"));
    }
    
    user_method singular_tori_dimension( $ , TDivisor, TDivisor){
@@ -82,7 +82,7 @@ object NormalToricVariety {
       singular_eval("M = std(M);");
       singular_eval("int d = vdim(M);");
       singular_eval("int vd = vdim(M);");
-      return (singular_get_var("d"), singular_get_var("vd"));
+      return new Vector(singular_get_var("d"), singular_get_var("vd"));
    }
 
 }
@@ -101,7 +101,7 @@ object CyclicQuotient{
       }
       my @result = ();
       foreach my $divisor (@divisors){
-         my @ext_vector = map((new Vector($cqs->singular_exti_dimension(1, $divisor, $_))),@canonical_minus_divisors);
+         my @ext_vector = map($cqs->singular_exti_dimension(1, $divisor, $_),@canonical_minus_divisors);
          my $ext_vector = new Vector(map($_->[1], @ext_vector));
          push @result, $ext_vector;
       }
@@ -117,7 +117,7 @@ object CyclicQuotient{
       }
       my @result = ();
       foreach my $divisor (@divisors){
-         my @tor_vector = map((new Vector($cqs->singular_tori_dimension(1, $divisor, $_))),@divisors);
+         my @tor_vector = map($cqs->singular_tori_dimension(1, $divisor, $_),@divisors);
          my $tor_vector = new Vector(map($_->[1], @tor_vector));
          push @result, $tor_vector;
       }
