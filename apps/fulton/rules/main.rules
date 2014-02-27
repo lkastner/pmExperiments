@@ -22,6 +22,7 @@ IMPORT
 
 INCLUDE
    utilities.rules
+   singular.rules
    milnor.rules
    commalg.rules
    cyclic_quotient.rules
