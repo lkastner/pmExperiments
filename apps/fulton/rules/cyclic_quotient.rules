@@ -215,6 +215,26 @@ object CyclicQuotient {
       print $tikzcode;
    }
 
+   user_method ext1_matrix_singular(){
+      my $cqs = $_[0];
+      my $canonical_divisor = new Vector(-1, -1);
+      my @divisors= ();
+      my @canonical_minus_divisors= ();
+      for(my $i=1; $i<=$cqs->N; $i++){
+         my $divisor_coefficients = new Vector(-$i, 0);
+         push @divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$divisor_coefficients);
+         push @canonical_minus_divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$canonical_divisor - $divisor_coefficients);
+      }
+      # print join("\n",map($_->COEFFICIENTS,@divisors));
+      my @result = ();
+      foreach my $divisor (@divisors){
+         my @ext_vector = map($cqs->exti_dimension_singular(1, $divisor, $_),@canonical_minus_divisors);
+         # print $divisor->COEFFICIENTS,": ",new Vector(@ext_vector),"\n";
+         push @result, new Vector(@ext_vector);
+      }
+      return new Matrix(@result);
+   }
+
    user_method compute_ext_matrix_local(Vector){
       
       my $cq = $_[0];

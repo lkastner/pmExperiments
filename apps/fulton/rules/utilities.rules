@@ -1,4 +1,118 @@
 
+object NormalToricVariety {
+
+   property SINGULAR_TORIC_RING : String;
+
+   property MONOID : Cone;
+
+   rule MONOID : RAYS {
+      $this->MONOID = new Cone(INEQUALITIES=>$this->RAYS);
+   }
+   precondition : AFFINE;
+
+   rule SINGULAR_TORIC_RING : MONOID {
+      my $monoid = $this->MONOID;
+      my $ringname = get_random_string();
+      my @variables = map("x(".$_.")",1..$monoid->HILBERT_BASIS->rows);
+      my $toric_ideal = toric_ideal_as_string($monoid, @variables);
+      singular_eval("ring R_".$ringname." = 0,(".join(",",@variables)."),dp;");
+      singular_eval("ideal toric_ideal = ".$toric_ideal.";");
+      singular_eval("qring r_".$ringname." = std(toric_ideal);");
+      $this->SINGULAR_TORIC_RING = $ringname;
+   }
+   precondition : AFFINE;
+
+   object TDivisor {
+      
+      property SINGULAR_IDEAL : String;
+
+      property MODULE_GENERATORS : Matrix<Integer>;
+
+      property SYZYGIES_MODULE : String;
+
+   }
+
+   rule DIVISOR.MODULE_GENERATORS : DIVISOR.SECTION_POLYTOPE{
+      my $section_polytope = $this->DIVISOR->SECTION_POLYTOPE;
+      my $result = lower_lattice_points($section_polytope);
+      $this->DIVISOR->MODULE_GENERATORS = $result->minor(All, ~[0]);
+   }
+   precondition : AFFINE;
+
+   rule DIVISOR.SYZYGIES_MODULE : SINGULAR_TORIC_RING, DIVISOR.SINGULAR_IDEAL{
+      my $ringname = $this->SINGULAR_TORIC_RING;
+      my $idealname = $this->DIVISOR->SINGULAR_IDEAL;
+      singular_eval("setring r_".$ringname.";");
+      singular_eval("module syz_".$idealname." = syz(div_".$idealname.");");
+      $this->DIVISOR->SYZYGIES_MODULE = $idealname;
+   }
+   precondition : AFFINE;
+
+   rule DIVISOR.SINGULAR_IDEAL : SINGULAR_TORIC_RING, MONOID, DIVISOR.MODULE_GENERATORS{
+      my $ringname = $this->SINGULAR_TORIC_RING;
+      my $generators = $this->DIVISOR->MODULE_GENERATORS;
+      # print "Gens: ",$generators,"\n";
+      my $monoid = $this->MONOID;
+      my $mod_vector = find_vector_moving_points_inside_cone($generators, $monoid);
+      # print "Mod vector: ",$mod_vector,"\n";
+      my @variables = map("x(".$_.")",1..$monoid->HILBERT_BASIS->rows);
+      my $mod_gens = new Matrix(map($mod_vector + $_, @$generators));
+      my $mod_gens_monomial_exponents = represent_vectors_in_Hilbert_basis($mod_gens, $monoid->HILBERT_BASIS, $monoid->FACETS);
+      my @mod_gens_monomials = map(vector_to_monomial_string($_,@variables), @$mod_gens_monomial_exponents);
+      my $idealname = get_random_string();
+      singular_eval("setring r_".$ringname.";");
+      singular_eval("ideal div_".$idealname." = ".join(",",@mod_gens_monomials).";");
+      singular_eval("div_".$idealname." = std(div_".$idealname.");");
+      $this->DIVISOR->SINGULAR_IDEAL = $idealname;
+   }
+   precondition : AFFINE;
+
+   user_method exti_dimension_singular( $ , TDivisor, TDivisor){
+      my $toric_variety = $_[0];
+      my $i = $_[1];
+      my $divisor1 = $_[2];
+      my $divisor2 = $_[3];
+      my $ringname = $toric_variety->SINGULAR_TORIC_RING;
+      my $syzygies1 = $divisor1->SYZYGIES_MODULE;
+      my $syzygies2 = $divisor2->SYZYGIES_MODULE;
+      singular_eval("setring r_".$ringname.";");
+      load_singular_library("homolog.lib");
+      singular_eval("module M = Ext(".$i.", syz_".$syzygies1.", syz_".$syzygies2.");");
+      singular_eval("M = std(M);");
+      singular_eval("int r = vdim(M);");
+      return singular_get_var("r");
+   }
+
+}
+
+sub find_vector_moving_points_inside_cone{
+   my($points, $cone) = @_;
+   $cone->FULL_DIM or die "This method will most likely fail for non fulldimensional cones.";
+   my $facets = $cone->FACETS;
+   my @non_contained = grep(minimum($facets * $_) < 0, @$points);
+   if(my $s = @non_contained == 0){
+      return zero_vector($points->cols);
+   }
+   # print "Have to move inside.\n";
+   my @new_facets = map(($facets*$_) | $facets, @$points);
+   my $solution_facets = pop @new_facets;
+   foreach my $m (@new_facets){
+      $solution_facets = $solution_facets / $m;
+   }
+   # print "New facets:\n",$solution_facets,"\n";
+   my $solution_poly = new Polytope(INEQUALITIES=>$solution_facets);
+   my $solution_cone = new Cone($solution_poly);
+   my @solutions = grep($_->[0] == 1, @{$solution_cone->HILBERT_BASIS});
+   return $solutions[0]->slice(1);
+}
+
+sub get_random_string{
+   my @chars = ("A".."Z", "a".."z");
+   my $string;
+   $string .= $chars[rand @chars] for 1..8;
+   return $string;
+}
+
 
 # Return a combination of the Hilbert basis elements H that yield
 # a given vector v. For containment checking we also need the facets
@@ -6,7 +120,7 @@
 user_function find_positive_combination(Vector, Matrix, Matrix){
    my ($v, $Hilbert_basis, $facets) = @_;
    # Check if v is really contained:
-   (minimum($facets*$v)>=0) or die "v is not contained.";
+   (minimum($facets*$v)>=0) or die "v is not contained: ".$v.".";
    my $result = new Vector($Hilbert_basis->rows);
    my $zero = new Vector($v->dim);
    while($v != $zero){
@@ -83,4 +197,13 @@ user_function toric_ideal_as_string(Cone, @ ){
       my @result = map(vector_to_binomial_string($_, @variables), @$toric_ideal);
       return join(",", @result);
    }
+}
+
+# Find all lattice points of a polytope P that are not reachable
+# from some other lattice point via the tail cone.
+user_function lower_lattice_points(Polytope){
+   my ($P) = @_;
+   my $C = new Cone($P);
+   my $H = $C->HILBERT_BASIS_GENERATORS->[0];
+   return new Matrix(grep($_->[0]==1,@$H));
 }
