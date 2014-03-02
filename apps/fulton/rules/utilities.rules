@@ -1,17 +1,8 @@
 
-object NormalToricVariety {
+object AffineNormalToricVariety {
 
-   property MONOID : Cone;
-
-   rule MONOID : RAYS {
-      $this->MONOID = new Cone(INEQUALITIES=>$this->RAYS);
-   }
-   precondition : AFFINE;
-   
-   object TDivisor {
-      
-      property MODULE_GENERATORS : Matrix<Integer>;
-
+   rule WEIGHT_CONE : RAYS {
+      $this->WEIGHT_CONE = new Cone(INEQUALITIES=>$this->RAYS);
    }
 
    rule DIVISOR.MODULE_GENERATORS : DIVISOR.SECTION_POLYTOPE{
@@ -19,7 +10,6 @@ object NormalToricVariety {
       my $result = lower_lattice_points($section_polytope);
       $this->DIVISOR->MODULE_GENERATORS = $result->minor(All, ~[0]);
    }
-   precondition : AFFINE;
 
 }
 

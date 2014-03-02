@@ -1,10 +1,10 @@
 
-object NormalToricVariety {
+object AffineNormalToricVariety {
    
    property SINGULAR_TORIC_RING : String;
 
-   rule SINGULAR_TORIC_RING : MONOID {
-      my $monoid = $this->MONOID;
+   rule SINGULAR_TORIC_RING : WEIGHT_CONE {
+      my $monoid = $this->WEIGHT_CONE;
       my $ringname = get_random_string();
       my @variables = map("x(".$_.")",1..$monoid->HILBERT_BASIS->rows);
       my $toric_ideal = toric_ideal_as_string($monoid, @variables);
@@ -32,11 +32,11 @@ object NormalToricVariety {
    }
    precondition : AFFINE;
 
-   rule DIVISOR.SINGULAR_IDEAL : SINGULAR_TORIC_RING, MONOID, DIVISOR.MODULE_GENERATORS{
+   rule DIVISOR.SINGULAR_IDEAL : SINGULAR_TORIC_RING, WEIGHT_CONE, DIVISOR.MODULE_GENERATORS{
       my $ringname = $this->SINGULAR_TORIC_RING;
       my $generators = $this->DIVISOR->MODULE_GENERATORS;
       # print "Gens: ",$generators,"\n";
-      my $monoid = $this->MONOID;
+      my $monoid = $this->WEIGHT_CONE;
       my $mod_vector = find_vector_moving_points_inside_cone($generators, $monoid);
       # print "Mod vector: ",$mod_vector,"\n";
       my @variables = map("x(".$_.")",1..$monoid->HILBERT_BASIS->rows);
