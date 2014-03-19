@@ -1,212 +1,139 @@
 object CyclicQuotient {
    
-   property CLASS_GROUP : Matrix;
+   property CLASS_GROUP_REPRESENTATIVES : Matrix;
 
-   rule CLASS_GROUP : N, Q{
+   rule CLASS_GROUP_REPRESENTATIVES : N, Q{
       my $n = $this->N;
       my $q = $this->Q;
-      my $P = new Polytope(POINTS=>[[1,0,0],[1,$q-$n,-1],[1,-$n,0],[1,$q-2*$n,-1]]);
-      my $class_group = $P->LATTICE_POINTS;
-      $class_group = new Matrix<Rational>($class_group->minor(All,~[0]));
-      my @class_group = grep($_->[1] != -1,@$class_group);
-      my @class_group = grep(($_->[0] + ($q-$n)*$_->[1]) != -$n, @class_group);
-      $this->CLASS_GROUP = new Matrix<Rational>(@class_group);
+      my @class_group = map((new Vector(-$_, 0)),1..(new Int($n)));
+      $this->CLASS_GROUP_REPRESENTATIVES = new Matrix<Rational>(@class_group);
    }
 
 
-   declare object Ext;
+   declare object ResolutionData;
 
-   object Ext {
+   object ResolutionData {
+      
+      property WEIGHTED_EDGES : Map<Pair<Vector, Vector>, Vector>;
 
       property LABELS : String;
       
       property GRAPH : Graph<Directed>;
-      
-      property ADJACENCY : Map<Vector,Array<Vector>>;
 
-      property VERTEX_MAP : Map<Vector,Array<Vector>>;
-
-      property GEN_MAP : Map<Vector,Matrix>;
+      property INCIDENCE_MATRIX : Matrix;
 
    }
 
-   property EXT : Ext;
+   property RESOLUTION : ResolutionData;
 
-   rule EXT.GRAPH.ADJACENCY, EXT.GRAPH.NODE_LABELS : EXT.ADJACENCY, CLASS_GROUP {
-      my $G = $this->CLASS_GROUP;
-      my $numbers = new Map<Vector, Int>();
-      my $graph = new common::Graph<Directed>($G->rows);
+   property EXT1_MATRIX : Matrix;
+   
+   property TOR1_MATRIX : Matrix;
+
+   rule TOR1_MATRIX : EXT1_MATRIX, RESOLUTION.INCIDENCE_MATRIX{
+      my $ext1 = $this->EXT1_MATRIX;
+      my $incidence_matrix = $this->RESOLUTION->INCIDENCE_MATRIX;
+      $this->TOR1_MATRIX = $incidence_matrix * $incidence_matrix * $ext1;
+   }
+
+   rule EXT1_MATRIX : DUAL_CONTINUED_FRACTION{
+      my $dcf = $this->DUAL_CONTINUED_FRACTION;
+      $this->EXT1_MATRIX = ext1_mat_from_dcf($dcf);
+   }
+
+   rule RESOLUTION.INCIDENCE_MATRIX : N, RESOLUTION.WEIGHTED_EDGES{
+      my $n = $this->N;
+      my $weighted_edges = $this->RESOLUTION->WEIGHTED_EDGES;
+      my $incidence_matrix = new Matrix(new Int($n), new Int($n));
+      foreach my $edge (keys %$weighted_edges){
+         my $source = $edge->[0];
+         my $target = $edge->[1];
+         print $source," ",$target,"\n";
+         my $row = -$target->[0]-1;
+         my $col = -$source->[0]-1;
+         $incidence_matrix->($row, $col)++;
+      }
+      $this->RESOLUTION->INCIDENCE_MATRIX = $incidence_matrix;
+   }
+
+   rule RESOLUTION.WEIGHTED_EDGES : CLASS_GROUP_REPRESENTATIVES, N, Q {
+      my $G = $this->CLASS_GROUP_REPRESENTATIVES;
+      my $n = $this->N;
+      my $weighted_edges = new Map<Pair<Vector, Vector>, Vector>();
+      foreach my $coefficients (@$G){
+         my $divisor = $this->DIVISOR(COEFFICIENTS=>$coefficients, temporary);
+         my $generators = sort_matrix_rows_by_first_coordinate($divisor->MODULE_GENERATORS);
+         # print $generators,"\n";
+         my $target = $coefficients;
+         for(my $j = 1; $j<$generators->rows; $j++){
+            my $inbetween = $generators->[$j]->[0] - $generators->[$j-1]->[0];
+            my $source = new Vector(-$inbetween, 0);
+            my $edge = new Pair<Vector,Vector>($source, $target);
+            my $shift = $generators->[$j-1];
+            $weighted_edges->{$edge} = $shift;
+         }
+      }
+      $this->RESOLUTION->WEIGHTED_EDGES = $weighted_edges;
+   }
+
+   rule RESOLUTION.GRAPH.ADJACENCY, RESOLUTION.GRAPH.NODE_LABELS : CLASS_GROUP_REPRESENTATIVES, N, RESOLUTION.WEIGHTED_EDGES{
+      my $class_group = $this->CLASS_GROUP_REPRESENTATIVES;
+      my $graph = new common::Graph<Directed>($class_group->rows);
+      my $weighted_edges = $this->RESOLUTION->WEIGHTED_EDGES;
+      my $numbering = new Map<Vector, Int>();
       my $k = 0;
-      foreach my $g (@$G){
-         $numbers->{$g} = $k;
+      foreach my $g (@$class_group){
+         $numbering->{$g} = $k;
          $k++;
       }
-      foreach my $g (@$G){
-         foreach my $n (@{$this->EXT->ADJACENCY->{$g}}){
-            $graph->edge($numbers->{$g},$numbers->{$n});
-         }
+      foreach my $edge (keys %$weighted_edges){
+         my $source = $edge->[0];
+         my $target = $edge->[1];
+         $graph->edge($numbering->{$source}, $numbering->{$target});
       }
-      $this->EXT->GRAPH->NODE_LABELS = @$G;
-      $this->EXT->GRAPH->ADJACENCY = $graph;
+      $this->RESOLUTION->GRAPH->NODE_LABELS = @$class_group;
+      $this->RESOLUTION->GRAPH->ADJACENCY = $graph;
    }
 
-   rule EXT.ADJACENCY, EXT.VERTEX_MAP, EXT.GEN_MAP : CLASS_GROUP, N, Q {
-      my $n = $this->N;
-      my $q = $this->Q;
-      my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
-      my $vmap = new Map<Vector,Array<Vector>>();
-      my $egraph = new Map<Vector,Array<Vector>>();
-      my $gmap = new Map<Vector,Matrix>();
-      # We construct a hash associating to a divisor
-      # the vertex of its section polytope.
-      my $vertex_hash = new Map<Vector,Vector>();
-      my $labels = "";
-      foreach my $div (@{$this->CLASS_GROUP}){
-         my $D = new Polytope(INEQUALITIES=>$div|$c->FACETS);
-         my $vertex = $D->VERTICES->[0]->slice(1);
-         $vertex_hash->{$div} = $vertex;
-      }
-  
-      foreach my $div (@{$this->CLASS_GROUP}){
-         my $D = new Polytope(INEQUALITIES=>$div|$c->FACETS);
-         my @associated = ();
-         my $genD = lower_lattice_points($D);
-         $genD = $genD->minor(All,~[0]);
-         
-         my @sorted = ();
-         for(my $i =0; $i<200; $i++){
-            foreach my $g (@$genD){
-               if($g->[0]==$i){
-                  push @sorted,$g;
-               }
-            }
-         }
-         $genD = new Matrix<Rational>(@sorted);
-         $gmap->{$div} = $genD;
+}
 
-         # Calculating intersection polytopes:
-         my @ips = map((new Polytope(POINTS=>(ones_vector(1)|$_)/(zero_vector(2)|$c->RAYS))),@$genD);
-         my $n = @ips;
-         @ips = map(intersection($ips[$_],$ips[$_+1]),0..($n-2));
-         @ips = map(($_->VERTICES->[0]->slice(1)),@ips);
-         
-         # Setting the vertex map:
-         $vmap->{$div} = new Array<Vector>(map(-$_,@ips));
-         
-         foreach my $t (@ips){
-            foreach my $v (@{$this->CLASS_GROUP}){
-               if(is_integral($t-$vertex_hash->{$v})){
-                  push @associated, new Vector($v);
-                  $labels .= $div;
-                  $labels .= " < shift: ";
-                  $labels .= $t-$vertex_hash->{$v};
-                  $labels .= " < ";
-                  $labels .= $v;
-                  $labels .= "\n";
-                  last;
-               }
-            }
-         }
-         
-         # Setting the graph:
-         $egraph->{$div} = new Array<Vector>(@associated);
-      }
-      print $labels;
-      # Assigning to global:
-      $this->EXT->VERTEX_MAP = $vmap;
-      $this->EXT->ADJACENCY = $egraph;
-      $this->EXT->GEN_MAP = $gmap;
+user_function ext1_mat_from_dcf(Vector<Integer>){
+   my($dcf) = @_;
+   $dcf = new Vector<Integer>($dcf);
+   my $length = $dcf->dim;
+   if($length == 0){
+      return zero_matrix(1,1);
    }
-
-   user_method new_graph(){
-      my $cq = $_[0];
-      my $n = $cq->N;
-      my $q = $cq->Q;
-      for(my $i = 1; $i<$n; $i++){
-         my $gc = new Cone(INPUT_RAYS=>[[$n,$i*$n,$i*$q],[0,$n,$q],[0,0,1]]);
-         my $genD = new Matrix(grep($_->[0]==1, @{$gc->HILBERT_BASIS_GENERATORS->[0]}));
-         $genD = $genD->minor(All,~[0]);
-         
-         my @sorted = ();
-         for(my $i =0; $i<200; $i++){
-            foreach my $g (@$genD){
-               if($g->[0]==$i){
-                  push @sorted,$g;
-               }
-            }
-         }
-         $genD = new Matrix<Rational>(@sorted);
-        
-         print $genD;
-
-         for(my $j=1; $j<$genD->rows; $j++){
-            my $source = $genD->[$j]->[0]-$genD->[$j-1]->[0];
-            my $shift = $genD->[$j-1];
-            print $source," > shift: [",$shift,"] > ",$i,"\n";
-         }
-      
-      }
+   if($dcf == ones_vector<Integer>(1)){
+      return zero_matrix(1,1);
    }
-
-   user_method print_ext_nicely(){
-      my $cq = $_[0];
-      foreach my $div (@{$cq->CLASS_GROUP}){
-         print "The divisor ",$div," is associated with:\n";
-         foreach my $a ($cq->EXT->ADJACENCY->{$div}){
-            print $a,"\n";
-         }
-         print ".\n";
-      }
+   if($dcf->[$length-1] == 1){
+      $dcf = $dcf->slice(0, $length-1);
+      $dcf->[$dcf->dim - 1]--;
+      return ext1_mat_from_dcf(new Vector<Integer>($dcf));
    }
-
-   
-   user_method compute_ext_polytopes(){
-      
-      my $cq = $_[0];
-      my $n = $cq->N;
-      my $q = $cq->Q;
-      my $c = new Cone(INPUT_RAYS=>[[0,1],[$n,$q]]);
-
-      my $tikzcode = "";
-
-      foreach my $div (@{$cq->CLASS_GROUP}){
-         $tikzcode .= "Divisor: (".$div.")\n";
-         my $geni = $cq->EXT->GEN_MAP->{$div};
-         my $lower_ann = new Polytope(POINTS=>(ones_vector(1)|-$geni->[0])/(zero_vector(2)|$c->RAYS)); 
-         my $upper_ann = new Polytope(POINTS=>(ones_vector(1)|-$geni->[$geni->rows-1])/(zero_vector(2)|$c->RAYS)); 
-         my $ann = intersection($lower_ann,$upper_ann); 
-         my $nann_vertex = $ann->VERTICES->[0]->slice(1); 
-         # Complement of the annihilating polytopes: 
-         my $nann = new Polytope(POINTS=>(ones_vector(1)|$nann_vertex)/(zero_vector(2)|-$c->RAYS)); 
- 
-         # Creating the intersection polytopes: 
-         my @ips = @{$cq->EXT->VERTEX_MAP->{$div}}; 
-         @ips = map((new Polytope(POINTS=>(ones_vector(1)|$_)/(zero_vector(2)|$c->RAYS))),@ips); 
-         @ips = map(intersection($nann,$_),@ips); 
-         
-         $tikzcode .= "\\\[\\begin\{tikzpicture\}\n";
-         foreach my $pp (@ips){
-            if($pp->VERTICES->rows != 4){
-               die "Wrong number of vertices!";
-            }
-            my $v = $pp->VERTICES->minor(All, ~[0]);
-            my $v1 = $pp->VERTICES->minor([0,2,1,3], ~[0]);
-            my @v = map("(".$_->[0].",".$_->[1].")",@$v);
-            my @v1 = map("(".$_->[0].",".$_->[1].")",@$v1);
-            $tikzcode .= "\\fill ";
-            $tikzcode .= join(" -- ",@v);
-            $tikzcode .= " -- cycle;\n";
-            $tikzcode .= "\\fill ";
-            $tikzcode .= join(" -- ",@v1);
-            $tikzcode .= " -- cycle;\n";
-         }
-         $tikzcode .= "\\end\{tikzpicture\}\\\]\n";
-   
-
-      }
-      print $tikzcode;
+   $dcf->[$length-1]--;
+   my @dcf = @$dcf;
+   my $upper_left_dcf = new Vector<Integer>(@dcf[0..($length-2)]);
+   my $lower_right_dcf = new Vector<Integer>(@dcf);
+   my $upper_left = ext1_mat_from_dcf($upper_left_dcf);
+   my $lower_right = ext1_mat_from_dcf($lower_right_dcf);
+   my $A;
+   if($upper_left->rows > $lower_right->rows){
+      my $start = $upper_left->rows - $lower_right->rows;
+      $A = $upper_left->minor(All, [$start..($upper_left->rows-1)]);
+   } else {
+      my $start = $lower_right->rows - $upper_left->rows;
+      $A = $lower_right->minor([$start..($lower_right->rows-1)], All);
    }
+   my $result = ($upper_left | $A) / (transpose($A) | $lower_right);
+   $result = $result + upper_triangular_ones_matrix($result->rows);
+   return new Matrix($result);
+}
 
+sub upper_triangular_ones_matrix{
+   my($n) = @_;
+   return new Matrix(map(ones_vector($n-$_) | zero_vector($_), 1..$n));
 }
 
 user_function ext_mat_test(Vector<Integer>){
@@ -259,7 +186,15 @@ user_function splitted_ext_mat(Vector<Integer>){
    }
 }
 
-
+sub sort_matrix_rows_by_first_coordinate{
+   my($matrix) = @_;
+   if($matrix->rows == 1){
+      return $matrix;
+   }
+   my @rows = @$matrix;
+   my @sorted_rows = sort{$a->[0] <=> $b->[0]} @rows;
+   return new Matrix(@sorted_rows);
+}
 
 
 

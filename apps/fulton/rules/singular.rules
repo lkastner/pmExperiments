@@ -108,6 +108,25 @@ object CyclicQuotient{
       return new Matrix(@result);
    }
    
+   user_method singular_ext3_matrix(){
+      my $cqs = $_[0];
+      my $canonical_divisor = new Vector(-1, -1);
+      my @divisors= ();
+      my @canonical_minus_divisors= ();
+      for(my $i=1; $i<=$cqs->N; $i++){
+         my $divisor_coefficients = new Vector(-$i, 0);
+         push @divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$divisor_coefficients);
+         push @canonical_minus_divisors, $cqs->add("DIVISOR",COEFFICIENTS=>$canonical_divisor - $divisor_coefficients);
+      }
+      my @result = ();
+      foreach my $divisor (@divisors){
+         my @ext_vector = map($cqs->singular_exti_dimension(3, $divisor, $_),@canonical_minus_divisors);
+         my $ext_vector = new Vector(map($_->[1], @ext_vector));
+         push @result, $ext_vector;
+      }
+      return new Matrix(@result);
+   }
+   
    user_method singular_tor1_matrix(){
       my $cqs = $_[0];
       my @divisors= ();

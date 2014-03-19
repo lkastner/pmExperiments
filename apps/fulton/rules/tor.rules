@@ -65,7 +65,7 @@ user_function tor( $ , Cone, Cone, Cone, Matrix, Matrix){
    $singular_string .= "qring r_s1v_tensor_R_s2v = std(ti_s1v);\n";
    $singular_string .= "map g = r_sv_tensor_R_s2v,".join(",",@lower_map_images).",".$s2v_variables.";\n";
 
-   # print $singular_string;
+   print $singular_string;
    singular_eval($singular_string);
 
    $singular_string = "";
