@@ -14,7 +14,7 @@ object CyclicQuotient {
 
    object ResolutionData {
       
-      property WEIGHTED_EDGES : Map<Pair<Vector, Vector>, Vector>;
+      property WEIGHTED_EDGES : Map<Pair<Vector, Vector>, Matrix>;
 
       property LABELS : String;
       
@@ -48,10 +48,10 @@ object CyclicQuotient {
       foreach my $edge (keys %$weighted_edges){
          my $source = $edge->[0];
          my $target = $edge->[1];
-         print $source," ",$target,"\n";
+         #print $source," ",$target,"\n";
          my $row = -$target->[0]-1;
          my $col = -$source->[0]-1;
-         $incidence_matrix->($row, $col)++;
+         $incidence_matrix->($row, $col) = $weighted_edges->{$edge}->rows;
       }
       $this->RESOLUTION->INCIDENCE_MATRIX = $incidence_matrix;
    }
@@ -59,7 +59,7 @@ object CyclicQuotient {
    rule RESOLUTION.WEIGHTED_EDGES : CLASS_GROUP_REPRESENTATIVES, N, Q {
       my $G = $this->CLASS_GROUP_REPRESENTATIVES;
       my $n = $this->N;
-      my $weighted_edges = new Map<Pair<Vector, Vector>, Vector>();
+      my $weighted_edges = new Map<Pair<Vector, Vector>, Matrix>();
       foreach my $coefficients (@$G){
          my $divisor = $this->DIVISOR(COEFFICIENTS=>$coefficients, temporary);
          my $generators = sort_matrix_rows_by_first_coordinate($divisor->MODULE_GENERATORS);
@@ -70,7 +70,12 @@ object CyclicQuotient {
             my $source = new Vector(-$inbetween, 0);
             my $edge = new Pair<Vector,Vector>($source, $target);
             my $shift = $generators->[$j-1];
-            $weighted_edges->{$edge} = $shift;
+            if(!defined $weighted_edges->{$edge}){
+               $weighted_edges->{$edge} = new Matrix($shift);
+            } else {
+               my $oldshift = $weighted_edges->{$edge};
+               $weighted_edges->{$edge} = $oldshift / $shift;
+            }
          }
       }
       $this->RESOLUTION->WEIGHTED_EDGES = $weighted_edges;
@@ -101,10 +106,7 @@ user_function ext1_mat_from_dcf(Vector<Integer>){
    my($dcf) = @_;
    $dcf = new Vector<Integer>($dcf);
    my $length = $dcf->dim;
-   if($length == 0){
-      return zero_matrix(1,1);
-   }
-   if($dcf == ones_vector<Integer>(1)){
+   if(($length == 0) || ($dcf == ones_vector<Integer>(1))){
       return zero_matrix(1,1);
    }
    if($dcf->[$length-1] == 1){

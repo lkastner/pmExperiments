@@ -36,20 +36,36 @@ user_function tor( $ , Cone, Cone, Cone, Matrix, Matrix){
    @lower_map_images = map(translate_to_monomial($_,"y"),@lower_map_images);
    
    my $singular_string = "";
+   
    # Create ring for lower right corner. We probably don't need this one.
-   $singular_string .= "ring R_sv = 0,(".$sv_variables."),dp;\n";
-   $singular_string .= "ideal ti_sv = ".$sv_toric_ideal.";\n";
-   $singular_string .= "qring r_sv = std(ti_sv);\n";
+   if($sv->TORIC_IDEAL->rows > 0){
+      $singular_string .= "ring R_sv = 0,(".$sv_variables."),dp;\n";
+      $singular_string .= "ideal ti_sv = ".$sv_toric_ideal.";\n";
+      $singular_string .= "qring r_sv = std(ti_sv);\n";
+   } else {
+      $singular_string .= "ring R_sv = 0,(".$sv_variables."),dp;\n";
+      $singular_string .= "ring r_sv = 0,(".$sv_variables."),dp;\n";
+   }
 
    # Create ring for upper right corner.
-   $singular_string .= "ring R_s2v = 0,(".$s2v_variables."),dp;\n";
-   $singular_string .= "ideal ti_s2v = ".$s2v_toric_ideal.";\n";
-   $singular_string .= "qring r_s2v = std(ti_s2v);\n";
+   if($s2v->TORIC_IDEAL->rows > 0){
+      $singular_string .= "ring R_s2v = 0,(".$s2v_variables."),dp;\n";
+      $singular_string .= "ideal ti_s2v = ".$s2v_toric_ideal.";\n";
+      $singular_string .= "qring r_s2v = std(ti_s2v);\n";
+   } else {
+      $singular_string .= "ring R_s2v = 0,(".$s2v_variables."),dp;\n";
+      $singular_string .= "ring r_s2v = 0,(".$s2v_variables."),dp;\n";
+   }
 
    # Create tensor product ring mapping surjectively onto upper right corner ring.
-   $singular_string .= "ring R_sv_tensor_R_s2v = 0,(".$sv_variables.",".$s2v_variables."),dp;\n";
-   $singular_string .= "ideal ti_sv = ".$sv_toric_ideal.";\n";
-   $singular_string .= "qring r_sv_tensor_R_s2v = std(ti_sv);\n";
+   if($sv->TORIC_IDEAL->rows > 0){
+      $singular_string .= "ring R_sv_tensor_R_s2v = 0,(".$sv_variables.",".$s2v_variables."),dp;\n";
+      $singular_string .= "ideal ti_sv = ".$sv_toric_ideal.";\n";
+      $singular_string .= "qring r_sv_tensor_R_s2v = std(ti_sv);\n";
+   } else {
+      $singular_string .= "ring R_sv_tensor_R_s2v = 0,(".$sv_variables.",".$s2v_variables."),dp;\n";
+      $singular_string .= "ring r_sv_tensor_R_s2v = 0,(".$sv_variables.",".$s2v_variables."),dp;\n";
+   }
 
    # Create map onto r_s2v.
    $singular_string .= "setring r_s2v;\n";
@@ -81,6 +97,7 @@ user_function tor( $ , Cone, Cone, Cone, Matrix, Matrix){
    $singular_string .= "matrix M[nrows(gB)][nrows(gB)];\n";
    $singular_string .= "matrix N[nrows(gA)][nrows(gA)];\n";
    $singular_string .= "def H = homology(module(gB),module(gA),module(M),module(N));\n";
+   $singular_string .= "H = std(H);\n";
    
    singular_eval($singular_string);
 
