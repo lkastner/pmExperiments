@@ -1,0 +1,120 @@
+IMPORT
+   polytope
+
+user_function step(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my $matroid = new Matroid(POINTS=>$C);
+   my $newC = new Matrix(0,$C->rows);
+   my $newU = new Matrix(0,$C->rows);
+   foreach my $circuit (@{$matroid->CIRCUITS}){
+      my $degrees = $U->minor($circuit, All);
+      print "Degrees:\n",$degrees,"\n";
+      my $coefficients = find_circuit_coefficients($C, $circuit);
+      print "Coeffs ok.\n";
+      my $gens = find_gens_of_intersection($facets, $degrees);
+      print "Ok so far.\n";
+      foreach my $degree (@$gens){
+         $newC = $coefficients / $newC;
+         $newU = $degree / $newU;
+         print "Matrices done.\n";
+         
+         ($newC, $newU) = reduce_first($newC, $newU, $facets);
+      }
+   }
+   return($newC, $newU);
+}
+
+user_function reduce_first(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my $matroid = new Matroid(POINTS=>$C);
+   print $matroid->CIRCUITS;
+   my @circuits_with_zero = grep($_->contains(0), @{$matroid->CIRCUITS});
+   print @circuits_with_zero;
+   my $s = @circuits_with_zero;
+   my @erase = ();
+   while($s > 0){
+      my $circuit = pop @circuits_with_zero;
+      print "Trying circuit: ",$circuit,"\nMatrix\n",$U,"\n";
+      my $index = find_sink($C, $U, $facets, $circuit);
+      if($index != -1){
+         @circuits_with_zero = grep(!$_->contains($index), @circuits_with_zero);
+         push @erase, $index;
+      }
+      $s = @circuits_with_zero;
+   }
+   my $s = new Set<Int>(@erase);
+   return(new Matrix($C->minor(~(new Set<Int>(@erase)),All)), new Matrix($U->minor(~(new Set<Int>(@erase)),All)));
+}
+
+sub find_sink{
+   my($C, $U, $facets, $circuit) = @_;
+   my @indices = @$circuit;
+   my $s = @indices;
+   while($s > 1){
+      print @indices, "\n";
+      my $c1 = pop @indices;
+      my $c2 = pop @indices;
+      print "Facets:\n",$facets,"\n";
+      print "Vec:\n",$U->[$c1] - $U->[$c2],"\n";
+      my $eval = $facets*($U->[$c1] - $U->[$c2]);
+      my $max_eval = maximum($eval);
+      my $min_eval = minimum($eval);
+      if($min_eval >= 0){
+         push @indices, $c1;
+      } elsif ($max_eval <= 0) {
+         push @indices, $c2;
+      }
+      $s = @indices;
+   }
+   print @indices, "\n";
+   if($s == 0){
+      return -1;
+   } else {
+      my $candidate = pop @indices;
+      foreach my $index (@$circuit){
+         my $min_eval = minimum($facets*($U->[$candidate]-$U->[$index]));
+         if($min_eval < 0){
+            return -1;
+         }
+      }
+      print "Found one: ",$candidate,"\n";
+      return $candidate;
+   }
+   return -1;
+}
+
+
+user_function find_circuit_matrix(Matrix){
+   my($C) = @_;
+   my $matroid = new Matroid(POINTS=>$C);
+   my @circuits = ();
+   foreach my $circuit (@{$matroid->CIRCUITS}){
+      my $coefficients = find_circuit_coefficients($C, $circuit);
+      push @circuits, $coefficients;
+   }
+   return new Matrix(@circuits);
+}
+
+sub find_circuit_coefficients{
+   my($C, $circuit) = @_;
+   my $submat = $C->minor($circuit,All);
+   $submat = transpose($submat);
+   my $non_zero_coefficients = null_space($submat)->[0];
+   my $non_zero_indices = new Vector<Int>($circuit);
+   my $circuit = new Vector($C->rows);
+   for(my $i=0; $i<$non_zero_indices->dim; $i++){
+      $circuit->[$non_zero_indices->[$i]]=$non_zero_coefficients->[$i];
+   }
+   return $circuit;
+}
+
+user_function find_gens_of_intersection{
+   my($facets, $degrees) = @_;
+   my $eval = $facets * transpose($degrees);
+   my $intersection_facet_values = new Vector(map(maximum($_), @$eval));
+   my $intersection = new Polytope(INEQUALITIES=>(-$intersection_facet_values|$facets));
+   my $cone = new Cone($intersection);
+   my $hilbert_basis = $cone->HILBERT_BASIS;
+   my $result = new Matrix(grep($_->[0]==1, @$hilbert_basis));
+   return $result->minor(All,~[0]);
+}
