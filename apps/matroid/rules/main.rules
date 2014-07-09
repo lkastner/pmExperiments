@@ -1,5 +1,127 @@
-IMPORT
-   polytope
+
+user_function step2(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my $matroid = new Matroid(POINTS=>$C);
+   my $facetValues1 = transpose($facets * transpose($U));
+   my @C2sSets = @{$matroid->CIRCUITS};
+   my @C2sVectors = ();
+   my @facetValues2 = ();
+
+   foreach my $circuit (@C2sSets){
+      my $circuitVector = find_circuit_coefficients($C, $circuit);
+      my $degreePolytopeFacetValues = intersect_cones($circuit, $facetValues1);
+      # print $circuit,"\n",$facetValues,"\n";
+      # print $degreePolytopeFacetValues,"\n";
+      # my $degreePolytope = new Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
+      # print "Generators:\n",$generators,"\n";
+      push @facetValues2, $degreePolytopeFacetValues;
+      push @C2sVectors, $circuitVector;
+   }
+
+   my $C2s = new Matrix(@C2sVectors);
+   my $facetValues2 = new Matrix(@facetValues2);
+
+   print "C2s:\n",$C2s;
+   
+   
+   my @C3s = @{(new Matroid(POINTS=>$C2s))->CIRCUITS};
+   print @C3s;
+   @C3s = map(find_circuit_coefficients($C2s,$_), @C3s);
+   my $C3s = new Matrix(@C3s);
+   
+   print "C3s:\n",$C3s;
+   
+
+   my $shift = 0;
+   my $n = $C2s->rows;
+   for(my $i=0; $i<$n; $i++){
+      my $position = $i + $shift;
+      my @relevantCircuits = grep($_->[$position] !=0, @$C3s);
+      my $generators = find_generators($facetValues2->[$position], $facets);
+      foreach my $circuit (@relevantCircuits){
+         $generators = eliminate_generators($position, $circuit, $generators, $facetValues2, $facets);
+      }
+      print "The following generators are left:\n",$generators,"for the circuit\n",$C2s->[$position],"\n";
+      # if($generators->rows == 0){
+      #    ($C2s, $C3s, $facetValues2) = eliminate_circuit($position, $C2s, $C3s, $facetValues2);
+      # } else {
+      #    ($C2s, $C3s, $facetValues2) = blow_up($position, $C2s, $C3s, $facetValues2, $generators);
+      # }
+   }
+   
+
+
+}
+
+sub eliminate_generators{
+   my($position, $circuit, $generators, $facetValues2, $facets) = @_;
+   $generators = new Matrix(ones_vector | $generators);
+   my @generators = @$generators;
+   my @non_zeroes = grep($circuit->[$_]!=0, 0..($circuit->dim -1));
+   my $intersectionFacetValues = intersect_cones((new Set<Int>(@non_zeroes)), $facetValues2);
+   my $intersection = new Polytope(INEQUALITIES=>(-$intersectionFacetValues|$facets));
+   @generators = grep(!($intersection->contains($_)), @generators);
+   return new Matrix(@generators);
+}
+
+user_function step1(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my $matroid = new Matroid(POINTS=>$C);
+   my $facetValues = transpose($facets * transpose($U));
+   my @allCircuitsAsSets = @{$matroid->CIRCUITS};
+   my @allCircuitsAsVectors = ();
+
+   my $degreePolytopeMap = new Map<Vector, Vector>();
+   my $generatorMap = new Map<Vector, Matrix>();
+
+   foreach my $circuit (@allCircuitsAsSets){
+      my $circuitVector = find_circuit_coefficients($C, $circuit);
+      my $degreePolytopeFacetValues = intersect_cones($circuit, $facetValues);
+      # print $circuit,"\n",$facetValues,"\n";
+      # print $degreePolytopeFacetValues,"\n";
+      # my $degreePolytope = new Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
+      my $generators = find_generators($degreePolytopeFacetValues, $facets);
+      # print "Generators:\n",$generators,"\n";
+      $degreePolytopeMap->{$circuitVector} = $degreePolytopeFacetValues;
+      $generatorMap->{$circuitVector} = $generators;
+      push @allCircuitsAsVectors, $circuitVector;
+   }
+
+   print "DegreePolytopeMap:\n",$degreePolytopeMap,"\n";
+   print "GeneratorMap:\n",$generatorMap,"\n";
+
+   my $allCircuitMatrix = new Matrix(@allCircuitsAsVectors);
+   my @relations = @{(new Matroid(POINTS=>$allCircuitMatrix))->CIRCUITS};
+   @relations = map(find_circuit_coefficients($allCircuitMatrix,$_), @relations);
+
+   my $switch = 0;
+   for(my $i=0; $i<$allCircuitMatrix->rows; $i++){
+      my @relevantRelations = grep($_->[$switch+$i]!=0, @relations);
+   }
+}
+
+sub find_generators{
+   my($degreePolytopeFacetValues, $facets) = @_;
+   my $degreePolytope = new Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
+   # print $degreePolytope->VERTICES,"\n";
+   my $degreeCone = new Cone($degreePolytope);
+   my $HilbertBasis = $degreeCone->HILBERT_BASIS;
+   my $result = new Matrix(grep($_->[0]==1, @$HilbertBasis));
+   return $result->minor(All,~[0]);
+}
+
+sub intersect_cones{
+   my($circuit, $facetValues) = @_;
+   my $activeCones = $facetValues->minor($circuit, All);
+   return componentwise_maximum($activeCones);
+}
+
+sub componentwise_maximum{
+   my($vectors) = @_;
+   my @columns = @{transpose($vectors)};
+   my @maxValues = map(maximum($_), @columns);
+   return new Vector(@maxValues);
+}
 
 user_function step(Matrix, Matrix, Matrix){
    my($C, $U, $facets) = @_;
@@ -98,14 +220,20 @@ user_function find_circuit_matrix(Matrix){
 sub find_circuit_coefficients{
    my($C, $circuit) = @_;
    my $submat = $C->minor($circuit,All);
+   print "Submat:\n",$submat;
+   print "circuit:\n",$circuit,"\n";
+   print "circuit:\n",$circuit->type->full_name,"\n";
    $submat = transpose($submat);
    my $non_zero_coefficients = null_space($submat)->[0];
-   my $non_zero_indices = new Vector<Int>($circuit);
-   my $circuit = new Vector($C->rows);
-   for(my $i=0; $i<$non_zero_indices->dim; $i++){
-      $circuit->[$non_zero_indices->[$i]]=$non_zero_coefficients->[$i];
+   print "Non-zero:\n",$non_zero_coefficients,"\n";
+   my $result = new Vector($C->rows);
+   my $i=0;
+   foreach my $index (@$circuit){
+      print "circuit:\n",$circuit,"\n";
+      $result->[$index] = $non_zero_coefficients->[$i];
+      $i++;
    }
-   return $circuit;
+   return $result;
 }
 
 user_function find_gens_of_intersection{
