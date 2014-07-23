@@ -25,7 +25,7 @@ user_function step2(Matrix, Matrix, Matrix){
    
    
    my @C3s = @{(new Matroid(POINTS=>$C2s))->CIRCUITS};
-   print @C3s;
+   # print @C3s;
    @C3s = map(find_circuit_coefficients($C2s,$_), @C3s);
    my $C3s = new Matrix(@C3s);
    
@@ -34,14 +34,48 @@ user_function step2(Matrix, Matrix, Matrix){
 
    my $shift = 0;
    my $n = $C2s->rows;
+   my $collectedDegrees = new Matrix(0,$facets->cols);
+   my $collectedCircuits = new Matrix(0,$C2s->cols);
    for(my $i=0; $i<$n; $i++){
       my $position = $i + $shift;
-      my @relevantCircuits = grep($_->[$position] !=0, @$C3s);
+      print "Position: ",$position,"\n";
+      my @relevantCircuits = ();
+      print "C3s rows: ",$C3s->rows,"\n";
+      if($C3s->rows > 0){
+         @relevantCircuits = grep($_->[$position] !=0, @$C3s);
+      } 
       my $generators = find_generators($facetValues2->[$position], $facets);
+      print "Generator candidates:\n",$generators;
       foreach my $circuit (@relevantCircuits){
          $generators = eliminate_generators($position, $circuit, $generators, $facetValues2, $facets);
+         print "Number of generator candidates left: ",$generators->rows,"\n";
       }
-      print "The following generators are left:\n",$generators,"for the circuit\n",$C2s->[$position],"\n";
+      print "The following generators are left:\n",$generators,"for the circuit\n",$C2s->[$i],"\n";
+      # $generators = $generators->minor(All,~[0]);
+      
+      my $numGens = $generators->rows;
+      if($numGens == 0){
+         $facetValues2 = $facetValues2->minor(~[$position], All);
+         $C3s = new Matrix(grep($_->[$position]==0, @$C3s));
+         $C3s = $C3s->minor(All, ~[$position]);
+         $shift--;
+      } else {
+         $collectedDegrees /= $generators;
+         $collectedCircuits /= repeat_row($C2s->[$i], $numGens);
+         print "Gens:\n",$generators,"\nFacets:\n",$facets;
+         my $insertFacetValues = $generators * transpose($facets);
+         my $before = $facetValues2->minor([0..($position-1)], All);
+         my $after = $facetValues2->minor([($position+1)..($facetValues2->rows-1)], All);
+         $facetValues2 = $before/($insertFacetValues / $after);
+         $C3s = blow_up_circuits($position, $numGens, $C3s);
+         $shift += $numGens-1;
+      }
+
+
+      print "Current facet values:\n",$facetValues2;
+      print "Current circuits:\n",$C3s;
+      $facetValues2 = new Matrix($facetValues2);
+      $C3s = new Matrix($C3s);
       # if($generators->rows == 0){
       #    ($C2s, $C3s, $facetValues2) = eliminate_circuit($position, $C2s, $C3s, $facetValues2);
       # } else {
@@ -49,8 +83,50 @@ user_function step2(Matrix, Matrix, Matrix){
       # }
    }
    
+   print "The result is:\nCircuits:\n",$collectedCircuits,"\nDegrees:\n",$collectedDegrees,"\n";
 
+   return($collectedCircuits,$collectedDegrees);
 
+}
+
+sub blow_up_circuits{
+   my($index, $blow_up, $circuits) = @_;
+   print "Circuits to blow up:\n",$circuits;
+   my @non_zeroes = grep($_->[$index] != 0, @$circuits);
+   my @zeroes = grep($_->[$index] == 0, @$circuits);
+   my @result = ();
+   # Blowing up non-zeroes:
+   foreach my $circuit (@non_zeroes){
+      for(my $i=0; $i<$blow_up; $i++){
+         my $val = $circuit->[$index];
+         my $add = $val * unit_vector($blow_up, $i);
+         if($index == 0){
+            my $new_circuit = $add|$circuit->slice($index+1,$circuit->dim-$index-1);
+            push @result, $new_circuit;
+         } elsif ($index == $circuit->dim -1){
+            my $new_circuit = $circuit->slice(0,$index)|$add;
+            push @result, $new_circuit;
+         } else {
+            my $new_circuit = $circuit->slice(0,$index)|$add|$circuit->slice($index+1,$circuit->dim-$index-1);
+            push @result, $new_circuit;
+         }
+      }
+   }
+   # Blowing up zeroes:
+   foreach my $circuit (@zeroes){
+      my $add = zero_vector($blow_up);
+      if($index == 0){
+         my $new_circuit = $add|$circuit->slice($index+1,$circuit->dim-$index-1);
+         push @result, $new_circuit;
+      } elsif ($index == $circuit->dim -1){
+         my $new_circuit = $circuit->slice(0,$index)|$add;
+         push @result, $new_circuit;
+      } else {
+         my $new_circuit = $circuit->slice(0,$index)|$add|$circuit->slice($index+1,$circuit->dim-$index-1);
+         push @result, $new_circuit;
+      }
+   }
+   return new Matrix(@result);
 }
 
 sub eliminate_generators{
@@ -61,6 +137,7 @@ sub eliminate_generators{
    my $intersectionFacetValues = intersect_cones((new Set<Int>(@non_zeroes)), $facetValues2);
    my $intersection = new Polytope(INEQUALITIES=>(-$intersectionFacetValues|$facets));
    @generators = grep(!($intersection->contains($_)), @generators);
+   @generators = map($_->slice(1), @generators);
    return new Matrix(@generators);
 }
 
@@ -220,16 +297,16 @@ user_function find_circuit_matrix(Matrix){
 sub find_circuit_coefficients{
    my($C, $circuit) = @_;
    my $submat = $C->minor($circuit,All);
-   print "Submat:\n",$submat;
-   print "circuit:\n",$circuit,"\n";
-   print "circuit:\n",$circuit->type->full_name,"\n";
+   # print "Submat:\n",$submat;
+   # print "circuit:\n",$circuit,"\n";
+   # print "circuit:\n",$circuit->type->full_name,"\n";
    $submat = transpose($submat);
    my $non_zero_coefficients = null_space($submat)->[0];
-   print "Non-zero:\n",$non_zero_coefficients,"\n";
+   # print "Non-zero:\n",$non_zero_coefficients,"\n";
    my $result = new Vector($C->rows);
    my $i=0;
    foreach my $index (@$circuit){
-      print "circuit:\n",$circuit,"\n";
+      # print "circuit:\n",$circuit,"\n";
       $result->[$index] = $non_zero_coefficients->[$i];
       $i++;
    }
@@ -245,4 +322,55 @@ user_function find_gens_of_intersection{
    my $hilbert_basis = $cone->HILBERT_BASIS;
    my $result = new Matrix(grep($_->[0]==1, @$hilbert_basis));
    return $result->minor(All,~[0]);
+}
+
+user_function find_circuits(Matrix){
+   my($A) = @_;
+   my $total = $A->rows;
+   my $max_rows = $A->cols;
+   my @candidates = ();
+   for(my $i=0; $i<$total; $i++){
+      push @candidates, new Set<Int>($i);
+   }
+   my @result = ();
+   my $numc = @candidates;
+   while($numc>0){
+      print "Currently there are ",$numc," candidates.\n";
+      my @newCandidates = ();
+      my @staying = ();
+      print "Candidates: ";
+      foreach my $candidate (@candidates){
+         print $candidate,", ";
+         my $testmat = $A->minor($candidate, All);
+         my $testrank = rank($testmat);
+         if($testrank < $candidate->size){
+            if($testrank == $candidate->size-1){
+               push @result, $candidate;
+            }
+         } else {
+            push @staying, $candidate;
+         }
+      }
+      print "\nNew elements: ";
+      foreach my $candidate (@staying){
+         for(my $i = maximum($candidate)+1; $i<$total; $i++){
+            my $new = $candidate+$i;
+            my $check = 1;
+            foreach my $circuit (@result){
+               if($new*$circuit == $circuit){
+                  $check=0;
+                  last;
+               }
+            }
+            if($check){
+               print $new,", ";
+               push @newCandidates, $new;
+            }
+         }
+      }
+      print "Result: ",@result,"\n";
+      @candidates = @newCandidates;
+      $numc = @candidates;
+   }
+   return @result;
 }
