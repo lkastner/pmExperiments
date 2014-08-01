@@ -1,3 +1,135 @@
+user_function _4ti2Circuits(Matrix){
+   my($B) = @_;
+   my $A = transpose($B);
+   #my $tempname = new Tempfile;
+   my $tempname = "bla";
+   open(my $filePipe, ">".$tempname.".mat");
+   print $filePipe $A->rows." ".$A->cols."\n";
+   print $filePipe new Matrix($A);
+   close($filePipe);
+   system("circuits -q ".$tempname);
+
+  
+   open(my $outfile, "<$tempname.cir")
+      or die "can't open output file $tempname.cir: $!";
+   my $dimline = <$outfile>;
+   my @circuits=();
+   my $i;
+   while (<$outfile>) {
+      my @vec = split;
+      push @circuits, \@vec;
+      $i++;
+   }
+
+   return new Matrix(@circuits);
+}
+
+sub is_contained{
+   # Is f1 contained in f2? Those are facet values.
+   my($f1, $f2) = @_;
+   my $difference = $f1 - $f2;
+   return minimum($difference) >= 0;
+}
+
+user_function step3(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my $C2sVectors = _4ti2Circuits($C);
+   my $facetValues1 = transpose($facets * transpose($U));
+
+   # Preprocessing:
+   my @preGenPairs = ();
+   foreach my $circuit (@$C2sVectors){
+      my $circuitSet = new Set<Int>(grep($circuit->[$_]!=0, 0..($circuit->dim -1)));
+      my $degreePolytopeFacetValues = intersect_cones($circuitSet, $facetValues1);
+      push @preGenPairs, new Pair<Vector, Vector>($circuit, $degreePolytopeFacetValues);
+   }
+
+   my @remember = ();
+   my $size = @preGenPairs;
+   print "We currently have ",$size," circuits to consider.\n";
+   while($size > 0){
+      my $currentPair = pop @preGenPairs;
+      my @containers = grep{is_contained($currentPair->[1], $_->[1])}@remember,@preGenPairs;
+      my @circuits = map($_->[0], @containers);
+      my $circuitMatrix = new Matrix(@circuits);
+      my $rank = rank($circuitMatrix);
+      my $rankExtended = rank($circuitMatrix/$currentPair->[0]);
+      if($rank != $rankExtended){
+         push @remember, $currentPair;
+         print $size," remember.\n";
+      } else {      
+         print $size," forget.\n";
+      }
+      $size = @preGenPairs;
+   }
+
+   my $n = @remember;
+
+   print "I will compute ",$n," Hilbert bases.\n";
+   
+   # Computing generators:
+   my @generatorPairs = ();
+
+   my $counter = 0; 
+   foreach my $circuitPair (@remember){
+      my $generators = find_generators($circuitPair->[1], $facets);
+      foreach my $gen (@$generators){
+         push @generatorPairs, new Pair<Vector, Vector>($circuitPair->[0], $gen);
+      }
+      print $counter," ";
+      $counter++;
+   }
+   print "\n";
+   
+   my $size = @generatorPairs;
+   print "We have ",$size,"Generators.\n";
+
+   my %numberedPairs = ();
+   my $i = 0;
+   for my $pair (@generatorPairs){
+      $numberedPairs{$i} = $pair;
+      $i++;
+   }
+   
+   my $graph = new Matrix($size, $size);
+
+   for(my $i=0; $i<$size; $i++){
+      for(my $j=0; $j<$size and $j!=$i; $j++){
+         my $geni = $numberedPairs{$i};
+         my $genj = $numberedPairs{$j};
+         my $difference = $geni->[1] - $genj->[1];
+         my $check = minimum($facets*$difference);
+         if($check >= 0){
+            $graph->($i,$j) = 1;
+         }
+      }
+   }
+
+   my $C2 = new Matrix(map($_->[0],@generatorPairs));
+   my $U2 = new Matrix(map($_->[1],@generatorPairs));
+   my @forget = ();
+   for(my $i=0; $i<$size; $i++){
+      my $outgoing = $graph->row($i);
+      my @indices = grep($outgoing->[$_]!=0, 0..($size-1));
+      print @indices,"\n";
+      my $minor = $C2->minor([@indices], All);
+      my $rank = rank($minor);
+      my $rankExtended = rank($minor/$C2->[$i]);
+      
+      if($rank == $rankExtended){
+         push @forget, $i;
+         $graph->col($i) = zero_vector($size);
+      }
+   }
+   
+   $C2 = $C2->minor(~[@forget], All);
+   $U2 = $U2->minor(~[@forget], All);
+   
+
+   # print $graph;
+   return($C2, $U2);
+
+}
 
 user_function step2(Matrix, Matrix, Matrix){
    my($C, $U, $facets) = @_;
@@ -135,7 +267,7 @@ sub eliminate_generators{
    my @generators = @$generators;
    my @non_zeroes = grep($circuit->[$_]!=0, 0..($circuit->dim -1));
    my $intersectionFacetValues = intersect_cones((new Set<Int>(@non_zeroes)), $facetValues2);
-   my $intersection = new Polytope(INEQUALITIES=>(-$intersectionFacetValues|$facets));
+   my $intersection = new polytope::Polytope(INEQUALITIES=>(-$intersectionFacetValues|$facets));
    @generators = grep(!($intersection->contains($_)), @generators);
    @generators = map($_->slice(1), @generators);
    return new Matrix(@generators);
@@ -179,9 +311,9 @@ user_function step1(Matrix, Matrix, Matrix){
 
 sub find_generators{
    my($degreePolytopeFacetValues, $facets) = @_;
-   my $degreePolytope = new Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
+   my $degreePolytope = new polytope::Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
    # print $degreePolytope->VERTICES,"\n";
-   my $degreeCone = new Cone($degreePolytope);
+   my $degreeCone = new polytope::Cone($degreePolytope);
    my $HilbertBasis = $degreeCone->HILBERT_BASIS;
    my $result = new Matrix(grep($_->[0]==1, @$HilbertBasis));
    return $result->minor(All,~[0]);
@@ -317,8 +449,8 @@ user_function find_gens_of_intersection{
    my($facets, $degrees) = @_;
    my $eval = $facets * transpose($degrees);
    my $intersection_facet_values = new Vector(map(maximum($_), @$eval));
-   my $intersection = new Polytope(INEQUALITIES=>(-$intersection_facet_values|$facets));
-   my $cone = new Cone($intersection);
+   my $intersection = new polytope::Polytope(INEQUALITIES=>(-$intersection_facet_values|$facets));
+   my $cone = new polytope::Cone($intersection);
    my $hilbert_basis = $cone->HILBERT_BASIS;
    my $result = new Matrix(grep($_->[0]==1, @$hilbert_basis));
    return $result->minor(All,~[0]);
