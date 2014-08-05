@@ -1,3 +1,64 @@
+user_function eliminate_edge(Polynomial, Polynomial, Vector){
+   # $f has longer edge, we use $g to eliminate.
+   my($f,$g,$w) = @_;
+   my $R = $f->get_ring;
+   my $fe = get_face_polynomial($f, $w);
+   my $ge = get_face_polynomial($g, $w);
+
+   
+}
+sub divide_polys{
+   my($f, $g) = @_;
+   my $R = $f->get_ring;
+}
+
+sub get_face_polynomial{
+   my($f, $w) = @_;
+   my $R = $f->get_ring;
+   my $fExponents = dense($f->monomials_as_matrix);
+   my $fCoefficients = $f->coefficients_as_vector;
+   my $fMax = maximum($fExponents*$w);
+   my @fMaxIndices = grep($fMax->[$_]*$w == $fMax, 0..($fExponents->rows-1));
+   my $feExponents = $fExponents->minor([@fMaxIndices],All);
+   $feExponents = new Matrix<Int>($feExponents);
+   my $feCoefficients = @{$fCoefficients}[@fMaxIndices];
+   $feCoefficients = new Vector<Rational>($feCoefficients);
+   return new Polynomial($feExponents, $feCoefficients, $R);
+}
+
+sub get_singular_poly{
+   my($name, $ring) = @_;
+   singular_eval("int n = size(".$name.")");
+   my $numTerms = singular_get_var("n");
+   my $numVars = $ring->n_vars;
+   my $exponents = new Matrix<Integer>(0, $numVars);
+   my $coefficients = new Vector<Rational>();
+   while($numTerms > 0){
+      singular_eval("intvec exponent = leadexp(".$name.");");
+      singular_eval("int num = int(numerator(leadcoef(".$name.")));");
+      singular_eval("int den = int(denominator(leadcoef(".$name.")));");
+      my $exponent = singular_get_var("exponent");
+      my $coefficient = new Rational(singular_get_var("num"),singular_get_var("den"));
+      $exponents = $exponents/$exponent;
+      $coefficients = $coefficients|$coefficient;
+      singular_eval($name." = ".$name."-lead(".$name.");");
+      singular_eval("int n = size(".$name.")");
+      $numTerms = singular_get_var("n");
+      print $numTerms;
+   }
+   return new Polynomial((new Matrix<Int>($exponents)),$coefficients, $ring);
+
+}
+
+user_function singular_gcd( $ , $ ){
+   my($f, $g) = @_;
+   my $R = $f->get_ring;
+   singular_eval("ring r =0,(".join(",",$R->variables)."),dp;");
+   singular_eval("poly f = ".$f.";");
+   singular_eval("poly g = ".$g.";");
+   singular_eval("poly k = gcd(f,g);");
+   return get_singular_poly("k", $R);
+}
 
 declare object Cloud{
 

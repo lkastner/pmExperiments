@@ -42,7 +42,7 @@ user_function get_random_string(){
 }
 
 
-# Return a combination of the Hilbert basis elements H that yield
+# Return a combination of the Hilbert basis elements H that yields
 # a given vector v. For containment checking we also need the facets
 # F of the cone.
 user_function find_positive_combination(Vector, Matrix, Matrix){
