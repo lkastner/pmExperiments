@@ -2,27 +2,46 @@ user_function eliminate_edge(Polynomial, Polynomial, Vector){
    # $f has longer edge, we use $g to eliminate.
    my($f,$g,$w) = @_;
    my $R = $f->get_ring;
+   print "Height before: ",maximum(newton($f)->VERTICES->minor(All,~[0])*$w),"\n";
    my $fe = get_face_polynomial($f, $w);
    my $ge = get_face_polynomial($g, $w);
-
-   
+   print "fe: ",$fe," ge: ",$ge,"\n";
+   my $gcd = singular_gcd($fe,$ge);
+   print $gcd,"\n";
+   if($gcd->monomials_as_matrix->rows == 1){
+      print "We were already done.\n";
+   }
+   my $a = divide_polys($fe, $gcd);
+   my $b = divide_polys($ge, $gcd);
+   my $result = $b*$f-$a*$g;
+   print "Height after: ",maximum(newton($result)->VERTICES->minor(All,~[0])*$w),"\n";
+   return $result;
 }
 sub divide_polys{
    my($f, $g) = @_;
    my $R = $f->get_ring;
+   singular_eval("ring r =0,(".join(",",$R->variables)."),dp;");
+   singular_eval("poly f = ".$f.";");
+   singular_eval("poly g = ".$g.";");
+   singular_eval("poly k = f/g;");
+   return get_singular_poly("k", $R);
 }
 
 sub get_face_polynomial{
    my($f, $w) = @_;
    my $R = $f->get_ring;
-   my $fExponents = dense($f->monomials_as_matrix);
+   my $fExponents = new Matrix<Int>($f->monomials_as_matrix);
    my $fCoefficients = $f->coefficients_as_vector;
-   my $fMax = maximum($fExponents*$w);
-   my @fMaxIndices = grep($fMax->[$_]*$w == $fMax, 0..($fExponents->rows-1));
+   my $v = $fExponents * $w;
+   my $fMax = maximum($v);
+   print $fMax," ",$f," ",$w,"\n";
+   my @fMaxIndices = grep($fExponents->[$_]*$w == $fMax, 0..($fExponents->rows-1));
+   # print @fMaxIndices,"\n";
    my $feExponents = $fExponents->minor([@fMaxIndices],All);
    $feExponents = new Matrix<Int>($feExponents);
-   my $feCoefficients = @{$fCoefficients}[@fMaxIndices];
-   $feCoefficients = new Vector<Rational>($feCoefficients);
+   # print $feExponents,"\n";
+   my @feCoefficients = @{$fCoefficients}[@fMaxIndices];
+   my $feCoefficients = new Vector<Rational>(@feCoefficients);
    return new Polynomial($feExponents, $feCoefficients, $R);
 }
 
@@ -33,6 +52,7 @@ sub get_singular_poly{
    my $numVars = $ring->n_vars;
    my $exponents = new Matrix<Integer>(0, $numVars);
    my $coefficients = new Vector<Rational>();
+   print "NumTerms: ";
    while($numTerms > 0){
       singular_eval("intvec exponent = leadexp(".$name.");");
       singular_eval("int num = int(numerator(leadcoef(".$name.")));");
@@ -44,8 +64,9 @@ sub get_singular_poly{
       singular_eval($name." = ".$name."-lead(".$name.");");
       singular_eval("int n = size(".$name.")");
       $numTerms = singular_get_var("n");
-      print $numTerms;
+      print $numTerms,",";
    }
+   print "\n";
    return new Polynomial((new Matrix<Int>($exponents)),$coefficients, $ring);
 
 }
