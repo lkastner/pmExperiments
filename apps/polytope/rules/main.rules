@@ -1,3 +1,55 @@
+object Cone<Rational>{
+   
+   property PRIMITIVE_RAYS : Matrix<Int>;
+
+   rule PRIMITIVE_RAYS : RAYS {
+      my $rays = new Matrix<Rational>($this->RAYS);
+      $this->PRIMITIVE_RAYS = new Matrix<Int>(map(primitive($_), @$rays));
+   }
+
+}
+
+object Polytope<Rational>{
+
+   property TAUTOLOGICAL_CONE : Cone<Rational>;
+
+   rule TAUTOLOGICAL_CONE : MINKOWSKI_CONE {
+      my $p = $this;
+      my $mink = $this->MINKOWSKI_CONE;
+      my $rays = new Matrix($mink->RAYS);
+      $rays /= zero_vector($rays->cols);
+      my @generators = ();
+      my $i = 0;
+      print "-----------------------------------------------\n";
+      foreach my $v (@$rays){
+         my $vert = $p->MINKOWSKI_CONE_POINT($v)->VERTICES;
+         push @generators, map($_->slice(1)|$v, @{$vert});
+         if($v != zero_vector($v->dim)){
+            print "Compact part of summand ",$i,"\n";
+            $i++;
+            foreach my $vv (grep($_->[0] == 1, @$vert)){
+               print $vv->slice(1), " -- ",$v,"\n";
+            }
+            print "\n";
+
+         } else {
+            print "Tail cone:\n";
+            foreach my $vv (grep($_->[0] == 0, @$vert)){
+               print $vv->slice(1), " -- ",$v,"\n";
+            }
+
+         }
+
+      }
+      my $zero = zero_vector($this->MINKOWSKI_CONE->DIM + $this->DIM);
+      @generators = grep($_ != $zero, @generators);
+      print "-----------------------------------------------\n";
+      $this->TAUTOLOGICAL_CONE = new Cone<Rational>(INPUT_RAYS=>new Matrix(@generators));
+   }
+
+}
+
+
 user_function integer_hull_lars(Polytope<Rational>){
    my($P) = @_;
    if($P->LATTICE){
