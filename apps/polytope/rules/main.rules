@@ -1,0 +1,23 @@
+user_function integer_hull_lars(Polytope<Rational>){
+   my($P) = @_;
+   if($P->LATTICE){
+      return $P;
+   }
+   my $vertices = $P->VERTICES;
+   my @non_lattice_vertices = grep(!is_integral($_),@$vertices);
+   my @lattice_vertices = grep(is_integral($_),@$vertices);
+   my @new_facets = @{$P->FACETS};
+   for my $vertex (@non_lattice_vertices){
+      my $vertex_cone_rays = new Matrix(map($_-$vertex, @$vertices));
+      my $vertex_cone = new Cone(INPUT_RAYS=>$vertex_cone_rays/$vertex);
+      my ($hb) = normaliz_compute($vertex_cone,hilbert_basis=>1,verbose=>1);
+      my @good_points = grep($_->[0] == 1, @$hb); #@{$vertex_cone->HILBERT_BASIS});
+      my $integer_cone = new Cone(INPUT_RAYS=>$vertex_cone_rays/(new Matrix(@good_points)));
+      push @new_facets, @{$integer_cone->FACETS};
+      push @lattice_vertices, grep($P->contains($_), @good_points);   
+   }
+   return(new Matrix(@lattice_vertices), new Matrix(@new_facets));
+}
+
+
+
