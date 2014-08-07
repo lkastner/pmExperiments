@@ -41,7 +41,7 @@ object Polytope<Rational>{
          }
 
       }
-      my $zero = zero_vector($this->MINKOWSKI_CONE->DIM + $this->DIM);
+      my $zero = zero_vector($this->MINKOWSKI_CONE->AMBIENT_DIM + $this->DIM);
       @generators = grep($_ != $zero, @generators);
       print "-----------------------------------------------\n";
       $this->TAUTOLOGICAL_CONE = new Cone<Rational>(INPUT_RAYS=>new Matrix(@generators));
