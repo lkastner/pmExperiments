@@ -1,3 +1,40 @@
+INCLUDE
+   resolution.rules
+
+
+
+sub compare_dp{
+   my($f1, $f2) = @_;
+   my $i = 0;
+   if($f1*ones_vector($f1->dim) < $f2 * ones_vector($f2->dim)){
+      return 1;
+   } elsif($f1*ones_vector($f1->dim) > $f2 * ones_vector($f2->dim)){
+      return -1;
+   }
+   while(($f1->[$i] == $f2->[$i]) && ($i<$f1->dim-1)){
+      $i++;
+   }
+   if($f1->[$i] < $f2->[$i]){
+      return 1;
+   } elsif ($f1->[$i] > $f2->[$i]){
+      return -1;
+   }
+   return 0;
+}
+
+sub compare_lex{
+   my($f1, $f2) = @_;
+   my $i = 0;
+   while(($f1->[$i] == $f2->[$i]) && ($i<$f1->dim-1)){
+      $i++;
+   }
+   if($f1->[$i] < $f2->[$i]){
+      return 1;
+   } elsif ($f1->[$i] > $f2->[$i]){
+      return -1;
+   }
+   return 0;
+}
 
 sub is_contained{
    # Is f1 contained in f2? Those are facet values.
@@ -6,39 +43,74 @@ sub is_contained{
    return minimum($difference) >= 0;
 }
 
+sub is_superflous{
+   my($pair, @reductor) = @_;
+   my @containerCircuits = map{$_->[0]}grep{is_contained($pair->[1], $_->[1])}@reductor;
+   my $circuitMatrix = new Matrix(@containerCircuits);
+   my $rank = rank($circuitMatrix);
+   my $rankExtended = rank($circuitMatrix/$pair->[0]);
+   if($rank != $rankExtended){
+      # print "Remember. ";
+      return 0;
+   } else {      
+      # print "Forget. ";
+      return 1;
+   }
+}
+
+sub preprocess_old{
+   my @pairs = @_;
+   my $size = @pairs;
+   print "\nThere are ".$size." pairs to consider.\n";
+   if($size > 10){
+      # print "I will preprocess_old!\n";
+      my $first = floor($size/2);
+      my $m = @pairs;
+      $size == $m or die "Something went awfully wrong.";
+      @pairs = sort{compare_lex($b->[1],$a->[1])}@pairs;
+      my @smallest = @pairs[0..$first];
+      @smallest = preprocess_old(@smallest);
+      my @rest = @pairs[($first+1)..($size-1)];
+      @rest = grep(!is_superflous($_,@smallest), @rest);
+      @pairs = (@smallest,@rest);
+   }
+
+
+   my @remember = ();
+   $size = @pairs;
+   print "\nWe currently have ",$size," circuits to consider.\n";
+   while($size > 0){
+      my $currentPair = pop @pairs;
+      my $test = is_superflous($currentPair,@remember,@pairs);
+      if(!$test){
+         push @remember, $currentPair;
+         # print $size," remember. ";
+      } else {      
+         # print $size," forget. ";
+      }
+      $size = @pairs;
+   }
+   return @remember;
+}
+
 user_function step3(Matrix, Matrix, Matrix){
    my($C, $U, $facets) = @_;
    my $C2sVectors = _4ti2Circuits($C);
+   print "Circuits done.\n";
    my $facetValues1 = transpose($facets * transpose($U));
 
    # Preprocessing:
    my @preGenPairs = ();
    foreach my $circuit (@$C2sVectors){
       my $circuitSet = new Set<Int>(grep($circuit->[$_]!=0, 0..($circuit->dim -1)));
-      my $degreePolytopeFacetValues = intersect_cones($circuitSet, $facetValues1);
+      my $degreePolytopeFacetValues = intersect_cones_old($circuitSet, $facetValues1);
       push @preGenPairs, new Pair<Vector, Vector>($circuit, $degreePolytopeFacetValues);
    }
 
-   my @remember = ();
-   my $size = @preGenPairs;
-   print "We currently have ",$size," circuits to consider.\n";
-   while($size > 0){
-      my $currentPair = pop @preGenPairs;
-      my @containers = grep{is_contained($currentPair->[1], $_->[1])}@remember,@preGenPairs;
-      my @circuits = map($_->[0], @containers);
-      my $circuitMatrix = new Matrix(@circuits);
-      my $rank = rank($circuitMatrix);
-      my $rankExtended = rank($circuitMatrix/$currentPair->[0]);
-      if($rank != $rankExtended){
-         push @remember, $currentPair;
-         print $size," remember.\n";
-      } else {      
-         print $size," forget.\n";
-      }
-      $size = @preGenPairs;
-   }
+   @preGenPairs = preprocess_old(@preGenPairs);
 
-   my $n = @remember;
+
+   my $n = @preGenPairs;
 
    print "I will compute ",$n," Hilbert bases.\n";
    
@@ -46,7 +118,7 @@ user_function step3(Matrix, Matrix, Matrix){
    my @generatorPairs = ();
 
    my $counter = 0; 
-   foreach my $circuitPair (@remember){
+   foreach my $circuitPair (@preGenPairs){
       my $generators = find_generators($circuitPair->[1], $facets);
       foreach my $gen (@$generators){
          push @generatorPairs, new Pair<Vector, Vector>($circuitPair->[0], $gen);
@@ -69,11 +141,14 @@ user_function step3(Matrix, Matrix, Matrix){
    my $graph = new Matrix($size, $size);
 
    for(my $i=0; $i<$size; $i++){
-      for(my $j=0; $j<$size and $j!=$i; $j++){
+      for(my $j=0; $j<$size; $j++){
          my $geni = $numberedPairs{$i};
          my $genj = $numberedPairs{$j};
          my $difference = $geni->[1] - $genj->[1];
          my $check = minimum($facets*$difference);
+         if($i == $j){
+            $check = -1;
+         }
          if($check >= 0){
             $graph->($i,$j) = 1;
          }
@@ -86,7 +161,7 @@ user_function step3(Matrix, Matrix, Matrix){
    for(my $i=0; $i<$size; $i++){
       my $outgoing = $graph->row($i);
       my @indices = grep($outgoing->[$_]!=0, 0..($size-1));
-      print @indices,"\n";
+      # print @indices,"\n";
       my $minor = $C2->minor([@indices], All);
       my $rank = rank($minor);
       my $rankExtended = rank($minor/$C2->[$i]);
@@ -96,12 +171,17 @@ user_function step3(Matrix, Matrix, Matrix){
          $graph->col($i) = zero_vector($size);
       }
    }
+   print "Reduction done.\n",@forget,"\n";
    
-   $C2 = $C2->minor(~[@forget], All);
-   $U2 = $U2->minor(~[@forget], All);
+   my $forget = @forget;
+   if($forget != 0){
+      $C2 = $C2->minor(~[@forget], All);
+      $U2 = $U2->minor(~[@forget], All);
+   }
    
 
    # print $graph;
+   print $C2->rows," ",$C2->cols,"\n";
    return($C2, $U2);
 
 }
@@ -116,7 +196,7 @@ user_function step2(Matrix, Matrix, Matrix){
 
    foreach my $circuit (@C2sSets){
       my $circuitVector = find_circuit_coefficients($C, $circuit);
-      my $degreePolytopeFacetValues = intersect_cones($circuit, $facetValues1);
+      my $degreePolytopeFacetValues = intersect_cones_old($circuit, $facetValues1);
       # print $circuit,"\n",$facetValues,"\n";
       # print $degreePolytopeFacetValues,"\n";
       # my $degreePolytope = new Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
@@ -241,7 +321,7 @@ sub eliminate_generators{
    $generators = new Matrix(ones_vector | $generators);
    my @generators = @$generators;
    my @non_zeroes = grep($circuit->[$_]!=0, 0..($circuit->dim -1));
-   my $intersectionFacetValues = intersect_cones((new Set<Int>(@non_zeroes)), $facetValues2);
+   my $intersectionFacetValues = intersect_cones_old((new Set<Int>(@non_zeroes)), $facetValues2);
    my $intersection = new polytope::Polytope(INEQUALITIES=>(-$intersectionFacetValues|$facets));
    @generators = grep(!($intersection->contains($_)), @generators);
    @generators = map($_->slice(1), @generators);
@@ -260,7 +340,7 @@ user_function step1(Matrix, Matrix, Matrix){
 
    foreach my $circuit (@allCircuitsAsSets){
       my $circuitVector = find_circuit_coefficients($C, $circuit);
-      my $degreePolytopeFacetValues = intersect_cones($circuit, $facetValues);
+      my $degreePolytopeFacetValues = intersect_cones_old($circuit, $facetValues);
       # print $circuit,"\n",$facetValues,"\n";
       # print $degreePolytopeFacetValues,"\n";
       # my $degreePolytope = new Polytope(INEQUALITIES=>(-$degreePolytopeFacetValues|$facets));
@@ -294,7 +374,7 @@ sub find_generators{
    return $result->minor(All,~[0]);
 }
 
-sub intersect_cones{
+sub intersect_cones_old{
    my($circuit, $facetValues) = @_;
    my $activeCones = $facetValues->minor($circuit, All);
    return componentwise_maximum($activeCones);
