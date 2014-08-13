@@ -14,8 +14,8 @@ user_function group_step(Matrix, Matrix, Matrix){
       my $C = $pair->[0];
       my $A = zero_matrix($circuits->rows, $C->cols);
       my $B = zero_matrix($C->rows, $circuits->cols);
-      $circuits = ($circuits | $A) / ($B | $C);
-      $degrees = $degrees/$pair->[1];
+      $circuits = new Matrix(($circuits | $A) / ($B | $C));
+      $degrees = new Matrix($degrees/$pair->[1]);
    }
    return($circuits, $degrees);
 }
@@ -82,7 +82,16 @@ user_function resolve_brute_force(Matrix, Matrix, Matrix){
 
    @preGenPairs = preprocess(@preGenPairs);
    
-   my @generatorPairs = ();
+   my %numberedPairs = compute_nice_sorted_generators($facets, @preGenPairs);
+
+   return reduce_generator_pairs($facets, %numberedPairs);
+   
+
+}
+
+sub compute_nice_sorted_generators{
+   my($facets, @preGenPairs) = @_;
+   my @genPairs = ();
    my $n = @preGenPairs;
    print "Computing ",$n," Hilbert bases.\n";
    $n = 0;
@@ -90,15 +99,22 @@ user_function resolve_brute_force(Matrix, Matrix, Matrix){
       print $n," ";
       $n++;
       my $generators = find_generators($pair->[1], $facets);
-      foreach my $gen (@$generators){
-         push @generatorPairs, new Pair<Vector, Vector>($pair->[0], $gen);
+      # print "Generators done\n",$generators,"\n";
+      push @genPairs, new Pair<Vector, Matrix>($pair->[0], $generators);
+   }
+
+   print "\n";
+   @genPairs = sort{$b->[1]->rows <= $a->[1]->rows}@genPairs;
+   my %numberedPairs = ();
+   my $i = 0;
+   foreach my $pair (@genPairs){
+      my $circuit = $pair->[0];
+      foreach my $degree (@{$pair->[1]}){
+         $numberedPairs{$i} = new Pair<Vector, Vector>($circuit, $degree);
+         $i++;
       }
    }
-   print "\n";
-   
-   return reduce_generator_pairs($facets, @generatorPairs);
-   
-
+   return %numberedPairs;
 }
 
 sub preprocess{
@@ -164,15 +180,8 @@ sub is_contained{
 }
 
 sub reduce_generator_pairs{
-   my($facets, @pairs) = @_;
-   my $size = @pairs;
-   my %numberedPairs = ();
-   my $i = 0;
-   for my $pair (@pairs){
-      $numberedPairs{$i} = $pair;
-      $i++;
-   }
-
+   my($facets, %numberedPairs) = @_;
+   my $size = keys %numberedPairs;
    my $graph = new Matrix($size, $size);
    for(my $i=0; $i<$size; $i++){
       for(my $j=0; $j<$size; $j++){
