@@ -18,6 +18,7 @@ user_function _4ti2CircuitsWithReduction(Matrix, Matrix){
    system("$circuits -q $tempname".(!$DebugLevel && " >/dev/null 2>&1"))
       and die "couldn't run 4ti2: $circuits -q $tempname.mat\n";
 
+   print "4ti2 done.\n";
    
    open(my $outfile, "<$tempname.cir")
       or die "can't open output file $tempname.cir: $!";
@@ -25,7 +26,7 @@ user_function _4ti2CircuitsWithReduction(Matrix, Matrix){
 
    my $dimline = <$outfile>;
    
-   my $preprocessor = new Preprocessor(10,new Matrix<Integer>($facetValues));
+   my $preprocessor = new Preprocessor(100,new Matrix<Integer>($facetValues));
 	local $_;
    while (<$outfile>) {
        my $vec = new SparseVector<Integer>($_);
@@ -33,6 +34,7 @@ user_function _4ti2CircuitsWithReduction(Matrix, Matrix){
        # Add to result object.
    }
    close $outfile;
+   print "Preprocessor done.\n";
    return $preprocessor;
 }
 

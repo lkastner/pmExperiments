@@ -5,13 +5,17 @@ user_function resolve_brute_force_preprocess(Matrix, Matrix, Matrix){
    # print "Facet Values:\n",$facetValues;
    $preprocessor->interreduce();
    
+   print "Interreduction done.\n";
    my @preGenPairs = ();
 
-   while (my($degree,$circuits) = each %{$preprocessor->give()}) { 
+   my $map = $preprocessor->give();
+   while (my($degree,$circuits) = each %$map) { 
       foreach my $circuit (@$circuits){
          push @preGenPairs, new Pair<Vector, Vector>($circuit, $degree);
       }
    }
+
+   print "Conversion done.\n";
 
    # print @preGenPairs;
    
@@ -29,10 +33,10 @@ user_function group_step(Matrix, Matrix, Matrix){
    my $n = @groups;
    print "There are ",$n," groups.\n";
    if($n == 1){
-      return resolve_brute_force($C, $U, $facets);
+      return resolve_brute_force_preprocess($C, $U, $facets);
    }
    my @indices = map(extract_subset_matrix($C, $_), @groups);
-   my @results = map((new Pair<Matrix,Matrix>(resolve_brute_force($C->minor($_, All), $U->minor($_, All), $facets))), @indices);
+   my @results = map((new Pair<Matrix,Matrix>(resolve_brute_force_preprocess($C->minor($_, All), $U->minor($_, All), $facets))), @indices);
    my $circuits = new Matrix(0,0);
    my $degrees = new Matrix(0, $U->cols);
    foreach my $pair (@results){
