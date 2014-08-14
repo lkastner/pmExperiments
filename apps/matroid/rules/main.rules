@@ -1,4 +1,20 @@
+
+declare property_type Preprocessor : c++ (include => ['polymake/matroid/preprocess.h']) {
+   
+   method construct(Int, Matrix) : c++;
+
+   method add(SparseVector) : non_const : void : c++;
+
+   method show() : non_const : void : c++;
+
+   method interreduce() : non_const : void : c++;
+
+   method give() : c++;
+   
+}
+
 INCLUDE
+   _4ti2.rules
    resolution.rules
 
 

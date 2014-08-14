@@ -1,3 +1,28 @@
+user_function resolve_brute_force_preprocess(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my $facetValues = $U * transpose($facets);
+   my $preprocessor = _4ti2CircuitsWithReduction($C, $facetValues);
+   # print "Facet Values:\n",$facetValues;
+   $preprocessor->interreduce();
+   
+   my @preGenPairs = ();
+
+   while (my($degree,$circuits) = each %{$preprocessor->give()}) { 
+      foreach my $circuit (@$circuits){
+         push @preGenPairs, new Pair<Vector, Vector>($circuit, $degree);
+      }
+   }
+
+   # print @preGenPairs;
+   
+   my %numberedPairs = compute_nice_sorted_generators($facets, @preGenPairs);
+
+   return reduce_generator_pairs($facets, %numberedPairs);
+   
+
+}
+
+
 user_function group_step(Matrix, Matrix, Matrix){
    my($C, $U, $facets) = @_;
    my @groups = find_groups($C);
