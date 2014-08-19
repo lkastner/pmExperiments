@@ -1,3 +1,17 @@
+user_function splitted_step(Matrix, @ ){
+   my($facets, @input) = @_;
+   return map(single_splitted_step($_->[0], $_->[1], $facets), @input);
+}
+
+user_function single_splitted_step(Matrix, Matrix, Matrix){
+   my($C, $U, $facets) = @_;
+   my @input = single_split($C, $U);
+   print "I have the following groups: ",join(", ",map($_->[0]->rows, @input)),"\n";
+   return map((new Pair<Matrix, Matrix>(resolve_brute_force_preprocess($_->[0], $_->[1], $facets))), @input);
+}
+
+
+
 user_function resolve_brute_force_preprocess(Matrix, Matrix, Matrix){
    my($C, $U, $facets) = @_;
    my $facetValues = $U * transpose($facets);
@@ -49,52 +63,6 @@ user_function group_step(Matrix, Matrix, Matrix){
    return($circuits, $degrees);
 }
 
-sub extract_subset_matrix{
-   my($A, $set) = @_;
-   my @indices = grep((non_zero_indices($A->[$_]) * $set)->size > 0, 0..($A->rows - 1));
-   return new Set<Int>(@indices);
-}
-
-sub find_groups{
-   my($A) = @_;
-   my @indexSets = unique(map(non_zero_indices($_),@$A));
-   my $s = @indexSets;
-   my @result = ();
-   while($s > 0){
-      my $currentSet = pop @indexSets;
-      my @intersectors = grep(($currentSet * $_)->size > 0, @indexSets);
-      my $n = @intersectors;
-      while($n > 0){
-         foreach my $set (@intersectors){
-            $currentSet = $currentSet + $set;
-         }
-         @indexSets = grep(($currentSet * $_)->size < $_->size, @indexSets);
-         @intersectors = grep(($currentSet * $_)->size > 0, @indexSets);
-         $n = @intersectors;
-      }
-      push @result, $currentSet;
-      $s = @indexSets;
-   }
-   return @result;
-}
-
-sub unique{
-   my @in = @_;
-   my @result = ();
-   my $s = @in;
-   while($s > 0){
-      my $elem = pop @in;
-      push @result, $elem;
-      @in = grep($_ != $elem, @in);
-      $s = @in;
-   }
-   return @result;
-}
-
-sub non_zero_indices{
-   my($v) = @_;
-   return new Set<Int>(grep($v->[$_] != 0, 0..($v->dim-1)));
-}
 
 user_function resolve_brute_force(Matrix, Matrix, Matrix){
    my($C, $U, $facets) = @_;

@@ -1,0 +1,135 @@
+
+sub single_split{
+   my($C, $U) = @_;
+   my $B = decompose($C);
+   my @groups = find_groups($B);
+   print @groups,"\n";
+   my $g = @groups;
+   if($g > 1){
+      print "There are ",$g," groups.\n";
+   } else {
+      print "No splitting.\n";
+   }
+   my @indices = map(extract_subset_matrix($B, $_), @groups);
+   print @indices,"\n";
+   my @submatrices = map((new Pair<Matrix, Matrix>($B->minor($indices[$_],$groups[$_]), $U->minor($indices[$_], All))), 0..($g-1));
+   return @submatrices;
+}
+
+
+sub unique{
+   my @in = @_;
+   my @result = ();
+   my $s = @in;
+   while($s > 0){
+      my $elem = pop @in;
+      push @result, $elem;
+      @in = grep($_ != $elem, @in);
+      $s = @in;
+   }
+   return @result;
+}
+
+sub non_zero_indices{
+   my($v) = @_;
+   return new Set<Int>(grep($v->[$_] != 0, 0..($v->dim-1)));
+}
+
+sub extract_subset_matrix{
+   my($A, $set) = @_;
+   my @indices = grep((non_zero_indices($A->[$_]) * $set)->size > 0, 0..($A->rows - 1));
+   return new Set<Int>(@indices);
+}
+
+sub find_groups{
+   my($A) = @_;
+   my @indexSets = unique(map(non_zero_indices($_),@$A));
+   my $s = @indexSets;
+   my @result = ();
+   while($s > 0){
+      my $currentSet = pop @indexSets;
+      my @intersectors = grep(($currentSet * $_)->size > 0, @indexSets);
+      @indexSets = grep(($currentSet * $_)->size == 0, @indexSets);
+      my $n = @intersectors;
+      while($n > 0){
+         foreach my $set (@intersectors){
+            $currentSet = $currentSet + $set;
+         }
+         @intersectors = grep(($currentSet * $_)->size > 0, @indexSets);
+         @indexSets = grep(($currentSet * $_)->size == 0, @indexSets);
+         $n = @intersectors;
+      }
+      push @result, $currentSet;
+      $s = @indexSets;
+   }
+   return @result;
+}
+
+sub decompose{
+   my($A) = @_;
+   my $B = triangulate(new Matrix<Rational>($A));
+   $B = reduce($B);
+   return $B;
+}
+
+sub triangulate{
+   my($A) = @_;
+   # print $A;
+   # print "Entering. ",$A->rows," ",$A->cols,"\n";
+   if($A->cols == 1){
+      # print "Returning since bla.\n";
+      return $A;
+   } elsif($A->[0] == zero_vector($A->cols)){
+      # print "Top row is zero.\n";
+      if($A->rows == 1){
+         return $A;
+      } else {
+         return ($A->[0] / (triangulate(new Matrix($A->minor(~[0], All)))));
+      }
+   } else {
+      if($A->(0,0) != 0){
+         # print "Going into loop.\n";
+         # print $A->col(0),"\n\n";
+         for(my $i = 1; $i<$A->cols; $i++){
+            # print $A->col($i),"\n";
+            $A->col($i) = $A->col($i)-($A->(0,$i)/$A->(0,0))*$A->col(0);
+            # print $A->col($i) -($A->(0,$i)/$A->(0,0))*$A->col(0),"\n";
+            # print $A->col($i),"\n\n";
+         }
+         # print "Bla. ",$A->rows," ",$A->cols,"\n";
+         if($A->rows > 1){
+            my $B = triangulate(new Matrix<Rational>($A->minor(~[0], ~[0])));
+            # print $B->rows," ",$B->cols,"\n";
+            $A->minor(~[0], ~[0]) = $B;
+         }
+         return $A;
+      } else {
+         # print "Permuting.\n";
+         my $i=0;
+         while($A->(0,$i) == 0){
+            $i++;
+         }
+         my $save = new Vector($A->col(0));
+         $A->col(0) = $A->col($i);
+         $A->col($i) = $save;
+         return triangulate($A);
+      }
+   }
+}
+
+sub reduce{
+   my($A) = @_;
+   my $i=0;
+   my $j=0;
+   while($i < $A->rows && $j<$A->cols){
+      if($A->($i,$j) == 0){
+         $i++;
+         next;
+      }
+      for(my $k=0; $k<$j; $k++){
+         $A->col($k) = $A->col($k) - ($A->($i,$k)/$A->($i,$j))*$A->col($j);
+      }
+      $j++;
+   }
+   return $A;
+}
