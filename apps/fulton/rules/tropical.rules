@@ -1,3 +1,93 @@
+user_function random_non_tropical_basis( Ring ){
+   my($R) = @_;
+   my $root = new Vector(0,0,0);
+   my $e1 = new Vector(2,0,0);
+   my $e2 = new Vector(5,0,0);
+   my $f = random_polynomial_with_edge($root, $e1, $R);
+   my $g = random_polynomial_with_edge($root, $e2, $R);
+   if(check_prime_with_M2($R, $f, $g)){
+      print "This ideal is prime.\n";
+   }
+   return new Ideal(GENERATORS=>[$f, $g]);
+}
+
+sub check_prime_with_M2{
+   my($R, $f, $g) = @_;
+   my $m2string = "R = QQ[".join(",",$R->variables)."];\n";
+   $m2string .= "f = ".$f.";\n";
+   $m2string .= "g = ".$g.";\n";
+   $m2string .= "i = ideal(f,g);\n";
+   $m2string .= "isPrime i\n";
+   print $m2string;
+   my $tempfile=new Tempfile;
+   open(my $input, ">$tempfile.in") or die "Can't create temporary file $tempfile.in: $!";
+   print $input $m2string;
+   close $input;
+
+   system("nohup M2 --silent --stop --no-prompts < $tempfile.in >\& $tempfile.out");
+   open(FILE, $tempfile.".out") or die "Can't read file '$tempfile.out' [$!]\n";
+   local $/;
+   my $content = <FILE>;
+   close (FILE);
+   print "Teh content is\n",$content,"\n";
+   my( $answer) = $content =~ m/o5 = (.*)$/m;
+   print "Answer:\n",$answer,"\n";
+   return $answer =~ m/true/;
+}
+
+sub random_polynomial_with_edge{
+   my($a, $b, $R) = @_;
+   my $exponents = new Matrix<Int>(dense(random_vertices_at_points($a, $b)));
+   return new Polynomial($exponents, ones_vector($exponents->rows), $R);
+}
+
+sub random_vertices_at_points{
+   my($a, $b) = @_;
+   my $bottom = rand_box(3,2,1)->VERTICES->minor(All,~[0]);
+   my $top = rand_box(3,2,1)->VERTICES->minor(All,~[0]);
+   my $bottom = new Matrix(map($_+$a, @$bottom));
+   $bottom = $bottom/$a;
+   my $top = new Matrix(map($_+$a, @$top));
+   $top = $top/$b;
+   return $top/$bottom;
+}
+
+user_function is_tropical_basis(Ideal){
+   my($I) = @_;
+   my $tbI = gfan_tropicalbasis($I);
+   return ($tbI->GENERATORS == $I->GENERATORS)
+}
+
+user_function gfan_tropicalbasis(Ideal ){
+   my($I) = @_;
+   my $tempfile=new Tempfile;
+   #my $tempfile="test";
+
+   my $R = $I->RING;
+
+   # Writing data to file:
+   open(my $input, ">$tempfile.in") or die "Can't create temporary file $tempfile.in: $!";
+   print $input "Q[";
+   print $input join(",",$R->variables);
+   print $input "]{\n";
+   print $input join(",",@{$I->GENERATORS});
+   print $input "\n}";
+   close $input;
+
+   # Accessing gfan:
+   # FIXME: Since we homogenize, we need to dehomogenize later!
+   system "(gfan_tropicalbasis -h <$tempfile.in) >$tempfile.out 2>/dev/null";
+   open(FILE, $tempfile.".out") or die "Can't read file '$tempfile.out' [$!]\n";
+   local $/;
+   my $content = <FILE>;
+   close (FILE);
+   my($polys) = $content =~ m/\{(.*)\}/s;
+   my @polys = split(",",$polys);
+   @polys = map((new Polynomial($R, $_)),@polys);
+   return new Ideal(GENERATORS=>\@polys);
+}
+
+
 user_function eliminate_edge(Polynomial, Polynomial, Vector){
    # $f has longer edge, we use $g to eliminate.
    my($f,$g,$w) = @_;
