@@ -7,8 +7,18 @@ user_function random_non_tropical_basis( Ring ){
    my $g = random_polynomial_with_edge($root, $e2, $R);
    if(check_prime_with_M2($R, $f, $g)){
       print "This ideal is prime.\n";
+      $I = new Ideal(GENERATORS=>[$f, $g]);
+      if(is_tropical_basis($I)){
+         print "Ideal is tropical basis.\n";
+         return random_non_tropical_basis($R);
+      } else {
+         print "Ideal is not tropical basis.\n";
+         return $I;
+      }
+   } else {
+      print "Ideal was not prime.";
+      return random_non_tropical_basis($R);
    }
-   return new Ideal(GENERATORS=>[$f, $g]);
 }
 
 sub check_prime_with_M2{
