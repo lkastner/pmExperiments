@@ -326,7 +326,7 @@ user_function shifts_inside(Polytope, Polytope){
 
 user_function tropPreVar(@){
    my(@a) = @_;
-   @coll = map($_->TROPICAL_VARIETY,@coll);
+   my @coll = map($_->TROPICAL_VARIETY, @a);
    @coll = map(check_fan($_->RAYS,$_->CONES->[$_->DIM-2]),@coll);
    my $result = pop @coll;
    my @nc = map((new Cone(INPUT_RAYS=>$result->RAYS->minor($_,All))),@{$result->MAXIMAL_CONES});
@@ -446,28 +446,25 @@ user_function checkWGFan(@){
    return User::load("$tempfile.out");
 }
 
-user_function cloud2Polynomial(Map<Vector, Rational>, $ ){
-   my($a, $b) = @_;
-   #my $b = "abcdefghijklmnop";
-   my $result = "";
-   foreach my $key (keys %$a){
-      my $monomial = "";
-      if($a->{$key} > 0){
-         $monomial .= "+";
-      }
-      $monomial .= $a->{$key};
-      for(my $i=0; $i<$key->dim; $i++){
-         if($key->[$i] != 0){
-            $monomial .= substr($b,$i,1);
-            if($key->[$i] > 1){
-               $monomial .= $key->[$i];
-            }
-         }
-      }
-      $result .= $monomial;
-   }
-   return $result;
+
+user_function cloud2Polynomial(Cloud){
+   my($C) = @_;
+
+   my $n = $C->EXPONENTS->cols;
+   my $R = new Ring($n);
+   
+   return cloud2poly_in_ring($C, $R);
 }
+
+sub cloud2poly_in_ring {
+    my ($C, $R) = @_;
+    my $Ex = $C->EXPONENTS;
+    my $Coef = new Vector(map($C->COEFFICIENTS->{$_}, @$Ex));
+
+    return new Polynomial((new Matrix<Int>($Ex)), $Coef, $R);
+}
+
+
 
 user_function step1(Cloud, Cloud, Vector<Integer>){
    my($g, $f, $v) = @_;
@@ -489,7 +486,7 @@ user_function step1(Cloud, Cloud, Vector<Integer>){
    }
    my $factor = -$g->COEFFICIENTS->{$first_g}/$f->COEFFICIENTS->{$first_f};
    my $shift = $first_g - $first_f;
-   print "Shift: ",$shift,"\n";
+   #print "Shift: ",$shift,"\n";
    my $summand = shiftCloud($f, $shift);
    $summand = multCloud($summand, $factor);
    # print $summand,"\n";
