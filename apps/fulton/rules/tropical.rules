@@ -130,6 +130,7 @@ sub divide_polys{
    return get_singular_poly("k", $R);
 }
 
+# returns the initial form w.r.t. $w
 sub get_face_polynomial{
    my($f, $w) = @_;
    my $R = $f->get_ring;
@@ -171,7 +172,6 @@ sub get_singular_poly{
    }
    print "\n";
    return new Polynomial((new Matrix<Int>($exponents)),$coefficients, $ring);
-
 }
 
 user_function singular_gcd( $ , $ ){
@@ -183,6 +183,12 @@ user_function singular_gcd( $ , $ ){
    singular_eval("poly k = gcd(f,g);");
    return get_singular_poly("k", $R);
 }
+
+
+
+
+
+
 
 declare object Cloud{
 
@@ -463,27 +469,27 @@ user_function cloud2Polynomial(Map<Vector, Rational>, $ ){
    return $result;
 }
 
-user_function step1(Cloud, Cloud, Vector){
+user_function step1(Cloud, Cloud, Vector<Integer>){
    my($g, $f, $v) = @_;
    my $edge_f = maxCloudPoints($f, $v);
    my $edge_g = maxCloudPoints($g, $v);
-   # print "f: ",$edge_f,"\n";
-   # print "g: ",$edge_g,"\n";
-   my $first_f = new Vector($v->dim);
-   my $first_g = new Vector($v->dim);
-   foreach my $key (keys %$edge_f){
+   #print "f: ",$edge_f,"\n";
+   #print "g: ",$edge_g,"\n";
+   my $first_f = new Vector<Integer>($v->dim);
+   my $first_g = new Vector<Integer>($v->dim);
+   foreach my $key (keys %{$edge_f->COEFFICIENTS}){
       if(lex($key, $first_f)){
          $first_f = $key;
       }
    }
-   foreach my $key (keys %$edge_g){
+   foreach my $key (keys %{$edge_g->COEFFICIENTS}){
       if(lex($key, $first_g)){
          $first_g = $key;
       }
    }
-   my $factor = -$g->{$first_g}/$f->{$first_f};
+   my $factor = -$g->COEFFICIENTS->{$first_g}/$f->COEFFICIENTS->{$first_f};
    my $shift = $first_g - $first_f;
-   # print "Shift: ",$shift,"\n";
+   print "Shift: ",$shift,"\n";
    my $summand = shiftCloud($f, $shift);
    $summand = multCloud($summand, $factor);
    # print $summand,"\n";
@@ -505,16 +511,16 @@ user_function addClouds(Cloud, Cloud){
    my $result = new Map<Vector<Integer>, Rational>();
    foreach my $key (@{$a->EXPONENTS/$b->EXPONENTS}){
       if(exists($a->COEFFICIENTS->{$key})){
-         $result->{$key} += $a->{$key};
+         $result->{$key} += $a->COEFFICIENTS->{$key};
       }
       if(exists($b->COEFFICIENTS->{$key})){
-         $result->{$key} += $b->{$key};
+         $result->{$key} += $b->COEFFICIENTS->{$key};
       }
    }
    return new Cloud(COEFFICIENTS=>cleanup($result));
 }
 
-user_function shiftCloud(Cloud, Vector){
+user_function shiftCloud(Cloud, Vector<Integer>){
    my($a, $b) = @_;
    my $result = new Map<Vector<Integer>, Rational>();
    foreach my $key (@{$a->EXPONENTS}){
@@ -545,21 +551,21 @@ user_function maxCloudValue(Cloud, Vector){
    return $result;
 }
 
-user_function maxCloudPoints(Cloud, Vector){
+user_function maxCloudPoints(Cloud, Vector<Integer>){
    my($a, $b) = @_;
    my $value = maxCloudValue($a, $b);
-   my $result = new Map<Vector, Rational>();
+   my $result = new Map<Vector<Integer>, Rational>();
    foreach my $key (@{$a->EXPONENTS}){
       if($value == $key*$b){
-         $result->{$key} = $a->{$key};
+         $result->{$key} = $a->COEFFICIENTS->{$key};
       };
    }
    return new Cloud(COEFFICIENTS=>$result);
 }
 
-user_function cleanup(Map<Vector, Rational>){
+user_function cleanup(Map<Vector<Integer>, Rational>){
    my($a) = @_;
-   my $result = new Map<Vector, Rational>();
+   my $result = new Map<Vector<Integer>, Rational>();
    foreach my $key (keys %$a){
       if($a->{$key} != 0){
          $result->{$key} = $a->{$key};
