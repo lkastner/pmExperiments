@@ -505,16 +505,11 @@ user_function lex(Vector, Vector){
 
 user_function addClouds(Cloud, Cloud){
    my($a, $b) = @_;
-   my $result = new Map<Vector<Integer>, Rational>();
-   foreach my $key (@{$a->EXPONENTS/$b->EXPONENTS}){
-      if(exists($a->COEFFICIENTS->{$key})){
-         $result->{$key} += $a->COEFFICIENTS->{$key};
-      }
-      if(exists($b->COEFFICIENTS->{$key})){
-         $result->{$key} += $b->COEFFICIENTS->{$key};
-      }
-   }
-   return new Cloud(COEFFICIENTS=>cleanup($result));
+   $a->EXPONENTS->cols == $b->EXPONENTS->cols or die "Incompatible dimensions.";
+   my $R = new Ring($a->EXPONENTS->cols);
+   my $apoly = cloud2poly_in_ring($a, $R);
+   my $bpoly = cloud2poly_in_ring($b, $R);
+   return new Cloud(POLYNOMIAL=>($apoly + $bpoly));
 }
 
 user_function shiftCloud(Cloud, Vector<Integer>){
@@ -528,15 +523,9 @@ user_function shiftCloud(Cloud, Vector<Integer>){
 
 user_function multCloud(Cloud, $ ){
    my($a, $b) = @_;
-   if($b != 0){
-      my $coeffs = $a->COEFFICIENTS;
-      my $res = new Map<Vector<Integer>, Rational>();
-      for my $key (keys %$coeffs){
-         $res->{$key} = $b * $coeffs->{$key};
-      }
-      return new Cloud(EXPONENTS=>$a->EXPONENTS, COEFFICIENTS=>$res);
-   }
-   return new Cloud(EXPONENTS=>new Matrix<Integer>());
+   my $R = new Ring($a->EXPONENTS->cols);
+   my $apoly = cloud2poly_in_ring($a, $R);
+   return new Cloud(POLYNOMIAL=>($b * $apoly));
 }
 
 user_function maxCloudValue(Cloud, Vector){
