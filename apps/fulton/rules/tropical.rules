@@ -3,20 +3,21 @@ user_function random_non_tropical_basis( Ring ){
    my $root = new Vector(0,0,0);
    my $e1 = new Vector(2,0,0);
    my $e2 = new Vector(5,0,0);
-   my $f = random_polynomial_with_edge($root, $e1, $R);
-   my $g = random_polynomial_with_edge($root, $e2, $R);
+   my $f = random_polynomial_with_edge($root, $e1, $R, 2, 2);
+   my $g = random_polynomial_with_edge($root, $e2, $R, 2, 2);
    if(check_prime_with_M2($R, $f, $g)){
       print "This ideal is prime.\n";
-      $I = new Ideal(GENERATORS=>[$f, $g]);
-      if(is_tropical_basis($I)){
+      my $I = new Ideal(GENERATORS=>[$f, $g]);
+      my $GI = gfan_tropicalbasis($I);
+      if($I->GENERATORS == $GI->GENERATORS){
          print "Ideal is tropical basis.\n";
          return random_non_tropical_basis($R);
       } else {
          print "Ideal is not tropical basis.\n";
-         return $I;
+         return ($I, $GI);
       }
    } else {
-      print "Ideal was not prime.";
+      print "Ideal was not prime.\n";
       return random_non_tropical_basis($R);
    }
 }
@@ -46,15 +47,16 @@ sub check_prime_with_M2{
 }
 
 sub random_polynomial_with_edge{
-   my($a, $b, $R) = @_;
-   my $exponents = new Matrix<Int>(dense(random_vertices_at_points($a, $b)));
+   my($a, $b, $R, $additionalMonomials, $boxSize) = @_;
+   my $exponents = new Matrix<Int>(dense(random_vertices_at_points($a, $b, $additionalMonomials, $boxSize)));
    return new Polynomial($exponents, ones_vector($exponents->rows), $R);
 }
 
 sub random_vertices_at_points{
-   my($a, $b) = @_;
-   my $bottom = rand_box(3,2,1)->VERTICES->minor(All,~[0]);
-   my $top = rand_box(3,2,1)->VERTICES->minor(All,~[0]);
+   my($a, $b, $additionalMonomials, $boxSize) = @_;
+   my $dim = $a->dim;
+   my $bottom = rand_box($dim,$boxSize,$additionalMonomials)->VERTICES->minor(All,~[0]);
+   my $top = rand_box($dim,$boxSize,$additionalMonomials)->VERTICES->minor(All,~[0]);
    my $bottom = new Matrix(map($_+$a, @$bottom));
    $bottom = $bottom/$a;
    my $top = new Matrix(map($_+$a, @$top));
@@ -117,6 +119,7 @@ user_function eliminate_edge(Polynomial, Polynomial, Vector){
    print "Height after: ",maximum(newton($result)->VERTICES->minor(All,~[0])*$w),"\n";
    return $result;
 }
+
 sub divide_polys{
    my($f, $g) = @_;
    my $R = $f->get_ring;
