@@ -1,0 +1,72 @@
+sub minimal_containing_face{
+   my($polytope, $u) = @_;
+   my $facets = $polytope->FACETS;
+   my $eq = new Matrix(grep($_*$u == 0, @$facets));
+   my $ineq = new Matrix(grep($_*$u != 0, @$facets));
+   return new Polytope(INEQUALITIES=>$ineq, EQUATIONS=>$eq);
+}
+
+sub sum_of_points_dim_choose_k{
+   my($polytope, $k) = @_;
+   my $result = 0;
+   $polytope->DIM > 0 or return $k==0 ? 1:0;
+   my $latticePoints = $polytope->LATTICE_POINTS;
+   # print "There are ",$latticePoints->rows," lattice points.\n";
+   foreach my $point (@$latticePoints){
+      my $dim = minimal_containing_face($polytope, $point)->DIM;
+      # print "Dimension is ",$dim," for ",$point,".\n";
+      # if($dim >= $k){
+         $result += binomial($dim, $k);
+      # }
+   }
+   return $result;
+}
+
+sub sum_of_points_mpoly{
+   my($polytope, $p, $m) = @_;
+   my $vertices = $polytope->VERTICES;
+   my $mVertices = ones_vector($vertices->rows) |($m * $vertices->minor(All, ~[0]));
+   my $mPolytope = new Polytope(POINTS=>$mVertices);
+   # if($m == 0){
+   #    print $mPolytope->LATTICE_POINTS;
+   #    print "mpoly has dim: ",$mPolytope->DIM,"\n";
+   #    print "Vertices:\n",$mVertices,"\n";
+   # }
+   return sum_of_points_dim_choose_k($mPolytope, $p);
+}
+
+sub create_wps_poly{
+   my($weights) = @_;
+   $weights->[0] == 1 or die "Not implemented yet. $!";
+   my $q = -$weights->slice(1);
+   my $facets = $q/dense(unit_matrix($q->dim));
+   $facets = unit_vector($facets->rows,0) | $facets;
+   return new Polytope(INEQUALITIES=>$facets);
+}
+
+user_function bott_tu_wps( Vector, $ , $ , $ ){
+   my($weights,$p,$q,$m) = @_;
+   my $n = $weights->dim;
+   if(0 < $q and $q < $n){
+      $m == 0 or return 0;
+      return $q == $p ? 1 : 0;
+   } elsif($q == 0){
+      $m >= 0 or return 0;
+      my $polytope = create_wps_poly($weights);
+      return sum_of_points_mpoly($polytope, $p, $m);
+   } elsif($q == $n){
+      $m <= 0 or return 0;
+      return sum_of_points_mpoly($polytope, $p, -$m);
+   } else {
+      die "Your q=$q fails.";
+   }
+}
+
+# Loop for bulk exec:
+# for(my $m=0; $m<11; $m++){
+#    print $m,":   ";
+#    for(my $p=0; $p<5; $p++){
+#       print bott_tu_wps($weights, $p,0, $m),"  ";
+#    }
+#    print "\n";
+# }

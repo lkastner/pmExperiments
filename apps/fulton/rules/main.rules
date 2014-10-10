@@ -27,6 +27,7 @@ INCLUDE
    downgrading.rules
    deformations.rules
    tor.rules
+   physics.rules
 
 user_function testing(Cone, Vector, Vector){
    my($c, $v1, $v2) = @_;
