@@ -63,10 +63,4 @@ user_function bott_tu_wps( Vector, $ , $ , $ ){
 }
 
 # Loop for bulk exec:
-# for(my $m=0; $m<11; $m++){
-#    print $m,":   ";
-#    for(my $p=0; $p<5; $p++){
-#       print bott_tu_wps($weights, $p,0, $m),"  ";
-#    }
-#    print "\n";
-# }
+# for(my $m=0; $m<11; $m++){print $m,":   "; for(my $p=0; $p<5; $p++){ print bott_tu_wps($weights, $p,0, $m),"  ";} print "\n"; }

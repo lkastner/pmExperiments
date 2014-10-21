@@ -1,3 +1,11 @@
+object TDivisor {
+   
+   property SINGULAR_IDEAL : String;
+
+   property SINGULAR_SYZYGIES : String;
+
+}
+
 
 object AffineNormalToricVariety {
    
@@ -14,14 +22,6 @@ object AffineNormalToricVariety {
       $this->SINGULAR_TORIC_RING = $ringname;
    }
    precondition : AFFINE;
-
-   object TDivisor {
-      
-      property SINGULAR_IDEAL : String;
-
-      property SINGULAR_SYZYGIES : String;
-
-   }
 
    rule DIVISOR.SINGULAR_SYZYGIES : SINGULAR_TORIC_RING, DIVISOR.SINGULAR_IDEAL{
       my $ringname = $this->SINGULAR_TORIC_RING;

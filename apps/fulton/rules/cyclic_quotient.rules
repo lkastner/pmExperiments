@@ -1,3 +1,19 @@
+declare object ResolutionData;
+
+object ResolutionData {
+   
+   property WEIGHTED_EDGES : Map<Pair<Vector, Vector>, Matrix>;
+
+   property LABELS : String;
+   
+   property GRAPH : Graph<Directed>;
+
+   property INCIDENCE_MATRIX : Matrix;
+
+}
+
+
+
 object CyclicQuotient {
    
    property CLASS_GROUP_REPRESENTATIVES : Matrix;
@@ -7,21 +23,6 @@ object CyclicQuotient {
       my $q = $this->Q;
       my @class_group = map((new Vector(-$_, 0)),1..(new Int($n)));
       $this->CLASS_GROUP_REPRESENTATIVES = new Matrix<Rational>(@class_group);
-   }
-
-
-   declare object ResolutionData;
-
-   object ResolutionData {
-      
-      property WEIGHTED_EDGES : Map<Pair<Vector, Vector>, Matrix>;
-
-      property LABELS : String;
-      
-      property GRAPH : Graph<Directed>;
-
-      property INCIDENCE_MATRIX : Matrix;
-
    }
 
    property RESOLUTION : ResolutionData;

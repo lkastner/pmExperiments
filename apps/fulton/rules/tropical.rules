@@ -324,6 +324,54 @@ user_function shifts_inside(Polytope, Polytope){
    # print $collected;
 }
 
+user_function tropical_hypersurface(Polynomial ){
+   my($f) = @_;
+   my $fan = normal_fan(newton($f));
+   my $codim1Cones = $fan->CONES->[$fan->CONES->size-2];
+   my @result = ();
+   my $rays = $fan->RAYS;
+   my $lineality = $fan->LINEALITY_SPACE;
+   foreach my $c (@$codim1Cones){
+      push @result, new Cone(INPUT_RAYS=>$rays->minor($c, All), LINEALITY_SPACE=>$lineality);
+   }
+   return check_fan_objects(@result);
+}
+
+user_function intersect_fans( @ ){
+   my(@fans) = @_;
+   my $n = @fans;
+   $n > 0 or die "Empty list of fans.$!";
+   if($n == 1){
+      return pop @fans;
+   } else {
+      my $f1 = pop @fans;
+      my $f2 = intersect_fans(@fans);
+      my @f1Cones = maximal_cones_of_fan($f1);
+      my @f2Cones = maximal_cones_of_fan($f2);
+      my @resultCones = ();
+      foreach my $c1 (@f1Cones){
+         foreach my $c2 (@f2Cones){
+            my $intersection = intersection($c1, $c2);
+            if($intersection->DIM > 0){
+               push @resultCones, $intersection;
+            }
+         }
+      }
+      print "Done.\n";
+      return check_fan_objects(@resultCones);
+   }
+}
+
+sub maximal_cones_of_fan{
+   my($fan) = @_;
+   my @mc = @{$fan->MAXIMAL_CONES};
+   my $rays = $fan->RAYS;
+   my $lineality = $fan->LINEALITY_SPACE;
+   @mc = map($rays->minor($_,All), @mc);
+   @mc = map(new Cone(INPUT_RAYS=>$_, LINEALITY_SPACE=>$lineality), @mc);
+   return @mc;
+}
+
 user_function tropPreVar(@){
    my(@a) = @_;
    my @coll = map($_->TROPICAL_VARIETY, @a);
