@@ -1,0 +1,55 @@
+user_function check_finiteness(Matrix, Vector){
+   my($facets, $d) = @_;
+   my @toAdd = ($d);
+   my @result = ();
+   while(@toAdd > 0){
+      my $m = @toAdd;
+      my $current = pop @toAdd;
+      print $m,": ", $current," ";
+      my @equivalents = grep(are_equivalent($facets, $current, $_), @result);
+      my $equivalents = @equivalents;
+      if($equivalents == 0){
+         print "Remembering.\n";
+         @toAdd = (@toAdd, all_intersections($facets, $current));
+         push @result, $current;
+      }
+      else { print "Dropping. ",join(" ",@equivalents),"\n";}
+   }
+   return @result;
+}
+
+sub all_intersections{
+   my($facets, $d) = @_;
+   my @result;
+   my $ineq = $d | $facets;
+   my $p = new Polytope(INEQUALITIES=>$ineq);
+   my $gens = lower_lattice_points($p);
+   $gens = $gens->minor(All, ~[0]);
+   print "Gens for: ",$d," \n";
+   print $gens,"\n";
+   $gens = -$gens * transpose($facets);
+   my $n = $gens->rows;
+   for(my $i=2; $i<=$n; $i++){
+      my @indices = all_subsets_of_k($i, 0..($n-1));
+      foreach my $index (@indices){
+         my $subgens = $gens->minor($index, All);
+         push @result, componentwise_minimum($subgens);
+      }
+   }
+   return @result;
+}
+
+sub componentwise_minimum{
+   my($vectors) = @_;
+   my @columns = @{transpose($vectors)};
+   my @maxValues = map(minimum($_), @columns);
+   return new Vector(@maxValues);
+}
+
+sub are_equivalent{
+   my($facets, $d1, $d2) = @_;
+   my $eq = ($d1-$d2 | $facets);
+   my $ineq = new Matrix(unit_vector($facets->cols+1,0));
+   my $p = new Polytope(EQUATIONS=>$eq, INEQUALITIES=>$ineq);
+   return $p->N_LATTICE_POINTS > 0;
+}
