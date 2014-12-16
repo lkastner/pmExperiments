@@ -2,7 +2,6 @@
 # compute the tropical variety
 user_function tropvarproj(Ideal){
     my($I) = @_;
-    my @F = @{$I->GENERATORS};
 
     # compute the dimension of I:
     my $R = $I->RING;
@@ -10,23 +9,31 @@ user_function tropvarproj(Ideal){
     $sing .= "ideal I = " . join(",", @{$I->GENERATORS}) . ";\n";
     $sing .= "int d = dim(std(I));\n";
 
-    print $sing . "\n";
-    
-    my $d = singular_get_var("d");
+    #print $sing . "\n";
+
+    singular_eval($sing);    
+    my $d = new Int(singular_get_var("d"));
 
     print $d . "\n";
 
+    my $r = $R->n_vars;    
+    my @projs = get_coordinate_projections($r, $d);
+
+    print @projs;
+
+    my @proj = @projs[0..$r-$d-1];
+
+    print @proj;
     
-    my @projs = ();
+    my @F = @{$I->GENERATORS};
+         
+    foreach (@proj) {
+	my $h = pushpull($I, $_);
 
-
-    my $r = $R->n_vars;
-    
-    for(my $i = 0; $i <= $r-$d; $i++){
-
+	unshift @F, $h;
     }
     
-    return;
+    return @F;
 }
 
 
@@ -61,7 +68,7 @@ user_function pushpull(Ideal, Matrix){
     my $n = singular_get_var("n");
 
     $n == 1
-	or die "Ideal is not principal. Is the projection geometrically regular?";
+	or warn "Ideal is not principal. Is the projection geometrically regular?";
     
     #print $h . "\n";
     #print $sing . "\n";
@@ -94,6 +101,7 @@ user_function random_non_tropical_basis( Ring ){
       return random_non_tropical_basis($R);
    }
 }
+
 
 user_function get_coordinate_projections($ , $ ){
    my($n, $d) = @_;
