@@ -1,5 +1,43 @@
-user_function projection_method(Ideal, Matrix){
-   my($I, $A) = @_;
+
+# compute the pull-back of the push forward of the ideal 
+# under the given matrix
+user_function pushpull(Ideal, Matrix){
+    my($I, $A) = @_;
+
+    my $R = $I->RING;
+    my @monomials = map(new Monomial((new Vector<Int>($_)), $R), @$A);
+    my $sing = "ring R = 0,(" . join(",", $R->variables) . "),dp;\n";
+    $sing .= "ideal I = " . join(",", @{$I->GENERATORS}) . ";\n";
+    $sing .= "ring S = 0,(T(1.." . $A->rows . ")),dp;\n";
+    $sing .= "setring R;\n";
+    $sing .= "map f = S, " . join(",", @monomials) .  ";\n";
+    $sing .= "setring S;\n";
+    $sing .= "ideal J = preimage(R, f, I);\n";
+    $sing .= "poly g = J[1];\n";
+    $sing .= "setring R;\n";
+    $sing .= "poly h = f(g);\n";
+    
+    singular_eval($sing);
+
+    my $h = get_singular_poly("h", $R);
+
+
+    # check whether J is principal:
+    $sing = "setring S;\n";
+    $sing .= "int n = size(J);\n";
+
+    singular_eval($sing);
+
+    my $n = singular_get_var("n");
+
+    $n == 1
+	or die "Ideal is not principal. Is the projection geometrically regular?";
+    
+    #print $h . "\n";
+    #print $sing . "\n";
+    #print join(",", @monomials), "\n";
+
+    return $h;
 }
 
 
