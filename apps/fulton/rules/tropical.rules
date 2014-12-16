@@ -463,7 +463,7 @@ user_function intersect_fans( @ ){
       $lineality == 0 or return check_fan_objects(@resultCones);
       my $rays = unique_rays(@resultCones);
       my @cones = ray_indices($rays, @resultCones);
-      return new PolyhedralFan(INPUT_RAYS=>RAYS, INPUT_CONES=>\@cones);
+      return new PolyhedralFan(INPUT_RAYS=>$rays, INPUT_CONES=>\@cones);
    }
 }
 
@@ -473,11 +473,11 @@ sub ray_indices{
    foreach my $cone (@cones){
       my @indices = ();
       foreach my $ray (@{$cone->RAYS}){
-         @indices = (@indices, grep($rays->[$_] == $ray, 0..$rays->rows));
+         @indices = (@indices, grep($rays->[$_] == $ray, 0..$rays->rows-1));
       }
       push @result, new Set<Int>(@indices);
    }
-   print "Indices done.\n";
+   # print "Indices done.\n";
    return @result;
 }
 
@@ -490,7 +490,7 @@ sub unique_rays{
          $s > 0 or push @result, $ray;
       }
    }
-   print "Rays done.\n";
+   # print "Rays done.\n";
    return new Matrix(@result);
 }
 
