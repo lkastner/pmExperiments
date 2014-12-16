@@ -1,3 +1,6 @@
+use List::MoreUtils;
+
+
 declare object ResolutionData;
 
 object ResolutionData {
@@ -101,7 +104,34 @@ object CyclicQuotient {
       $this->RESOLUTION->GRAPH->ADJACENCY = $graph;
    }
 
+   user_method ext1(TDivisor, TDivisor){
+      my($cqs, $d1, $d2) = @_;
+      my $rho1 = new Vector<Rational>(1, new Rational($cqs->Q,$cqs->N));
+      my $d1Gens = new Matrix<Rational>(sort_matrix_rows_by_first_coordinate($d1->MODULE_GENERATORS));
+      my $annVertex = -$d1Gens->[$d1Gens->rows-1] + ($d1Gens->[$d1Gens->rows-1]->[0] - $d1Gens->[0]->[0])*$rho1;
+      $annVertex = $annVertex - $rho1 - (new Vector<Rational>(0,new Rational(1,$cqs->N)));
+      # print "Ann: ",$annVertex,"\n";
+      my $d2Vertex = $d2->SECTION_POLYTOPE->VERTICES->[0]->slice(1);
+      $annVertex += $d2Vertex;
+      my $ann = new Polytope(POINTS=>[[1,@$annVertex],[0,0,-1],[0,-$cqs->N,-$cqs->Q]]);
+      # print $d1Gens,"\n",$d2Vertex,"\n";
+      my @result = ();
+      for(my $i=1; $i<$d1Gens->rows; $i++){
+         my $intersectionVertex = $d1Gens->[$i-1] + ($d1Gens->[$i]->[0] - $d1Gens->[$i-1]->[0])*$rho1;
+         # print "int: ",$intersectionVertex,"\n";
+         $intersectionVertex *= (-1);
+         $intersectionVertex += $d2Vertex;
+         my $intersector = new Polytope(POINTS=>[[1,@$intersectionVertex],[0,0,1],[0,$cqs->N,$cqs->Q]]);
+         my $intersection = intersection($ann, $intersector);
+         # print "LP:\n",$intersection->LATTICE_POINTS,"\n";
+         @result = (@result, @{$intersection->LATTICE_POINTS->minor(All,~[0])});
+      }
+      return new Matrix(uniq(@result));
+   }
+
 }
+
+
 
 user_function ext1_mat_from_dcf(Vector<Integer>){
    my($dcf) = @_;
@@ -118,7 +148,7 @@ user_function ext1_mat_from_dcf(Vector<Integer>){
    $dcf->[$length-1]--;
    my @dcf = @$dcf;
    my $upper_left_dcf = new Vector<Integer>(@dcf[0..($length-2)]);
-   my $lower_right_dcf = new Vector<Integer>(@dcf);
+   my $lower_right_dcf = new Vector<Integer>(\@dcf);
    my $upper_left = ext1_mat_from_dcf($upper_left_dcf);
    my $lower_right = ext1_mat_from_dcf($lower_right_dcf);
    my $A;
@@ -139,55 +169,6 @@ sub upper_triangular_ones_matrix{
    return new Matrix(map(ones_vector($n-$_) | zero_vector($_), 1..$n));
 }
 
-user_function ext_mat_test(Vector<Integer>){
-   my($c) = @_;
-   if($c == new Vector<Integer>([1])){
-      return new Matrix([[0]]);
-   }
-   my($UB, $LB, $UR) = splitted_ext_mat($c);
-   my $replacement = ($UB | $UR) / (transpose($UR) | $LB);
-   my $triang = new Matrix(map(ones_vector($replacement->cols - 1 - $_)|zero_vector($_), 0..($replacement->cols-2)));
-   $triang = zero_vector($replacement->cols) / (zero_vector($triang->rows) | $triang);
-   $replacement = $replacement + $triang;
-   return $replacement;
-
-}
-
-
-user_function splitted_ext_mat(Vector<Integer>){
-   my($c) = @_;
-   if($c == new Vector<Integer>([2])){
-      return (new Matrix([[0]]),new Matrix([[0]]),new Matrix([[0]]));
-   }
-   if($c->[$c->dim - 1] == 2){
-      # Replace lower block
-      my $ctilda = new Vector<Integer>($c->slice(0, $c->dim - 1));
-      my($UB, $LB, $UR) = splitted_ext_mat($ctilda);
-      my $replacement = ($UB | $UR) / (transpose($UR) | $LB);
-      my $triang = new Matrix(map(ones_vector($replacement->cols - 1 - $_)|zero_vector($_), 0..($replacement->cols-2)));
-      $triang = zero_vector($replacement->cols) / (zero_vector($triang->rows) | $triang);
-      $replacement = $replacement + $triang;
-      $LB = $replacement;
-      while($UR->cols < $replacement->cols){
-         $UR = $UB | $UR;
-      }
-      return (new Matrix($UB), new Matrix($LB), new Matrix($UR));
-   } else {
-      # Replace upper block
-      my $ctilda = new Vector<Integer>($c);
-      $ctilda->[$ctilda->dim - 1]--;
-      my($UB, $LB, $UR) = splitted_ext_mat($ctilda);
-      my $replacement = ($UB | $UR) / (transpose($UR) | $LB);
-      my $triang = new Matrix(map(ones_vector($replacement->cols - 1 - $_)|zero_vector($_), 0..($replacement->cols-2)));
-      $triang = zero_vector($replacement->cols) / (zero_vector($triang->rows) | $triang);
-      $replacement = $replacement + $triang;
-      $UB = $replacement;
-      while($UR->rows < $replacement->rows){
-         $UR = $UR / $LB;
-      }
-      return (new Matrix($UB), new Matrix($LB), new Matrix($UR));
-   }
-}
 
 sub sort_matrix_rows_by_first_coordinate{
    my($matrix) = @_;

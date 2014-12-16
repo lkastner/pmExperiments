@@ -1,18 +1,4 @@
 
-object AffineNormalToricVariety {
-
-   rule WEIGHT_CONE : RAYS {
-      $this->WEIGHT_CONE = new Cone(INEQUALITIES=>$this->RAYS);
-   }
-
-   rule DIVISOR.MODULE_GENERATORS : DIVISOR.SECTION_POLYTOPE{
-      my $section_polytope = $this->DIVISOR->SECTION_POLYTOPE;
-      my $result = lower_lattice_points($section_polytope);
-      $this->DIVISOR->MODULE_GENERATORS = $result->minor(All, ~[0]);
-   }
-
-}
-
 user_function find_vector_moving_points_inside_cone(Matrix, Cone){
    my($points, $cone) = @_;
    $cone->FULL_DIM or die "This method will most likely fail for non fulldimensional cones.";
@@ -127,11 +113,3 @@ user_function toric_ideal_as_string(Cone, @ ){
    }
 }
 
-# Find all lattice points of a polytope P that are not reachable
-# from some other lattice point via the tail cone.
-user_function lower_lattice_points(Polytope){
-   my ($P) = @_;
-   my $C = new Cone($P);
-   my $H = $C->HILBERT_BASIS_GENERATORS->[0];
-   return new Matrix(grep($_->[0]==1,@$H));
-}
