@@ -1,4 +1,35 @@
 
+# compute the tropical variety
+user_function tropvarproj(Ideal){
+    my($I) = @_;
+    my @F = @{$I->GENERATORS};
+
+    # compute the dimension of I:
+    my $R = $I->RING;
+    my $sing = "ring R = 0,(" . join(",", $R->variables) . "),dp;\n";
+    $sing .= "ideal I = " . join(",", @{$I->GENERATORS}) . ";\n";
+    $sing .= "int d = dim(std(I));\n";
+
+    print $sing . "\n";
+    
+    my $d = singular_get_var("d");
+
+    print $d . "\n";
+
+    
+    my @projs = ();
+
+
+    my $r = $R->n_vars;
+    
+    for(my $i = 0; $i <= $r-$d; $i++){
+
+    }
+    
+    return;
+}
+
+
 # compute the pull-back of the push forward of the ideal 
 # under the given matrix
 user_function pushpull(Ideal, Matrix){
@@ -20,7 +51,6 @@ user_function pushpull(Ideal, Matrix){
     singular_eval($sing);
 
     my $h = get_singular_poly("h", $R);
-
 
     # check whether J is principal:
     $sing = "setring S;\n";
