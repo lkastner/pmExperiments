@@ -426,55 +426,8 @@ sub maximal_cones_of_fan{
 
 user_function tropPreVar(@){
    my(@a) = @_;
-   my @coll = map($_->TROPICAL_VARIETY, @a);
-   @coll = map(check_fan($_->RAYS,$_->CONES->[$_->DIM-2]),@coll);
-   my $result = pop @coll;
-   my @nc = map((new Cone(INPUT_RAYS=>$result->RAYS->minor($_,All))),@{$result->MAXIMAL_CONES});
-   foreach my $f (@coll){
-      my @intersectors = @nc;
-      @nc = ();
-      foreach my $mc (@{$f->MAXIMAL_CONES}){
-         # print "Intersecting.\n";
-         my $pmc = new Cone(INPUT_RAYS=>$f->RAYS->minor($mc,All));
-         my @toadd = map(intersection($pmc,$_),@intersectors);
-         @toadd = grep($_->DIM > 0, @toadd);
-         foreach my $c (@toadd){
-            my $s = grep(equal_polyhedra($_,$c),@nc);
-            if($s==0){
-               push @nc, new Cone($c);
-            }
-         }
-      }
-      my $n = @nc;
-      print $n," cones.\n";
-      # $result = check_fan_objects(@nc);
-   }
-   print "Checking fan.\n";
-   my @rays = ();
-   foreach my $c (@nc){
-      foreach my $r (@{$c->RAYS}){
-         my $s = grep($_ == $r, @rays);
-         if($s == 0){
-            push @rays, $r;
-         }
-      }
-   }
-   my $rays = new Matrix(@rays);
-   my $raymap = new Map<Vector, Integer>();
-   my $i = 0;
-   foreach my $r (@rays){
-      $raymap->{$r} = $i;
-      $i++;
-   }
-   my @mc = ();
-   foreach my $c (@nc){
-      push @mc, new Set<Integer>(map($raymap->{$_}, @{$c->RAYS}));
-   }
-   $result = check_fan($rays, new Array<Set<Int>>(@mc));
-   print "Some information:\n";
-   print "Pure: ",$result->PURE,"\n";
-   print "dim: ",$result->DIM,"\n";
-   return $result;
+   my @hypersurfaces = map(tropical_hypersurface($_), @a);
+   return intersect_fans(@hypersurfaces);
 }
 
 user_function findParallelEdge(Cloud, Cloud){
