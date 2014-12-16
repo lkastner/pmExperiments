@@ -20,17 +20,21 @@ user_function tropvarproj(Ideal){
     my @projs = get_coordinate_projections($r, $d);
 
     print @projs;
-
-    my @proj = @projs[0..$r-$d-1];
-
-    print @proj;
-    
+  
     my @F = @{$I->GENERATORS};
-         
-    foreach (@proj) {
-	my $h = pushpull($I, $_);
+    my $count = 0;
 
-	unshift @F, $h;
+    while ($count < $r-$d){
+
+	print "count: $count, no of elements:" . @F . "\n";
+	
+	my $A = pop @projs;
+	my ($h, $succ) = pushpull($I, $A);
+	
+	if($succ){
+	    unshift @F, $h;
+	    $count++;
+	}
     }
     
     return @F;
@@ -74,7 +78,7 @@ user_function pushpull(Ideal, Matrix){
     #print $sing . "\n";
     #print join(",", @monomials), "\n";
 
-    return $h;
+    return ($h, $n==1);
 }
 
 
