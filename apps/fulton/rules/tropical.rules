@@ -215,8 +215,8 @@ sub get_singular_poly{
       singular_eval("int den = int(denominator(leadcoef(".$name.")));");
       my $exponent = singular_get_var("exponent");
       my $coefficient = new Rational(singular_get_var("num"),singular_get_var("den"));
-      $exponents = $exponents/$exponent;
-      $coefficients = $coefficients|$coefficient;
+      $exponents = new Matrix<Integer>($exponents/$exponent);
+      $coefficients = new Vector<Rational>($coefficients|$coefficient);
       singular_eval($name." = ".$name."-lead(".$name.");");
       singular_eval("int n = size(".$name.")");
       $numTerms = singular_get_var("n");
