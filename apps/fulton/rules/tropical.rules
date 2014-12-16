@@ -65,6 +65,15 @@ user_function random_non_tropical_basis( Ring ){
    }
 }
 
+user_function get_coordinate_projections($ , $ ){
+   my($n, $d) = @_;
+   my @subsets = all_subsets_of_k($d+1, 0..($n-1));
+   return map{
+      my @subset = @$_;
+      new Matrix(map(unit_vector($n, $_), @subset));
+   }@subsets;
+}
+
 sub check_prime_with_M2{
    my($R, $f, $g) = @_;
    my $m2string = "R = QQ[".join(",",$R->variables)."];\n";
