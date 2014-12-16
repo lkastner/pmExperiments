@@ -24,7 +24,9 @@ user_function tropvarproj(Ideal){
     my @F = @{$I->GENERATORS};
     my $count = 0;
 
-    while ($count < $r-$d){
+    my $Sigma = tropPreVar(@F);
+
+    while ($count < $r-$d || $Sigma->DIM > $d){
 
 	print "count: $count, no of elements:" . @F . "\n";
 	
@@ -34,10 +36,14 @@ user_function tropvarproj(Ideal){
 	if($succ){
 	    unshift @F, $h;
 	    $count++;
+
+	    $Sigma = intersect_fans($Sigma, tropical_hypersurface($h));
 	}
+
+	
     }
     
-    return @F;
+    return ($Sigma, new Ideal(GENERATORS=>\@F));
 }
 
 
