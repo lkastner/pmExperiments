@@ -1,5 +1,6 @@
 
-# compute the tropical variety
+# compute the tropical variety and a tropical basis
+# according to algorithm I:
 user_function tropvarproj(Ideal){
     my($I) = @_;
 
@@ -44,6 +45,99 @@ user_function tropvarproj(Ideal){
     }
     
     return ($Sigma, new Ideal(GENERATORS=>\@F));
+}
+
+
+user_function isGeomReg(Matrix, PolyhedralFan){
+    my ($A, $Sigma) = @_;
+
+    $Sigma->LINEALITY_DIM == 0
+	or die "Does not work for non-pointed fans at the moment.";
+    
+    # the image fan under A:
+    my @maximalCones = maximal_cones_of_fan($Sigma);
+    @maximalCones = map((new Cone(INPUT_RAYS=>$_->RAYS*transpose($A))), @maximalCones);
+    my $projectedFan = check_fan_objects(@maximalCones);
+
+    return 0 
+	unless 
+	$projectedFan && 
+	$projectedFan->N_RAYS == $Sigma->N_RAYS &&
+	$projectedFan->N_MAXIMAL_CONES == $Sigma->N_MAXIMAL_CONES;
+
+    return 1;   
+}
+
+
+# compute the tropical variety and a tropical basis
+# according to algorithm II:
+user_function tropvarproj2(Ideal){
+    my($I) = @_;
+
+    # compute the dimension of I:
+    my $R = $I->RING;
+    my $sing = "ring R = 0,(" . join(",", $R->variables) . "),dp;\n";
+    $sing .= "ideal I = " . join(",", @{$I->GENERATORS}) . ";\n";
+    $sing .= "int d = dim(std(I));\n";
+
+    singular_eval($sing);    
+    my $d = new Int(singular_get_var("d"));
+
+    # compute the prevar
+    my @F = @{$I->GENERATORS};
+    my $Sigma = tropPreVar(@F);
+
+    # refine it with the 'edge-killer' algorithm:
+    if(d != $Sigma->DIM){
+	$Sigma = edgeKiller($Sigma);
+    }
+
+    # compute first allprojections
+    # but choose only the Sigma-geom-regular ones:
+    my @projs = get_coordinate_projections($r, $d);
+    my $count = 0;
+
+    while ($count < $r-$d || $Sigma->DIM > $d){
+
+	print "count: $count, no of elements:" . @F . "\n";
+	
+	my $A = pop @projs;
+	my ($h, $succ) = pushpull($I, $A);
+	
+	if($succ && isGeomReg($A, $Sigma)){ # this condition is new in this version of the algo
+	    unshift @F, $h;
+	    $count++;
+
+	    $Sigma = intersect_fans($Sigma, tropical_hypersurface($h));
+	}
+    }
+    
+    return ($Sigma, new Ideal(GENERATORS=>\@F));
+}
+
+
+user_function edgeKiller(PolyhedralFan, Ideal){
+    my ($Sigma, $I) = @_;
+
+    my @F = $I->GENERATTORS;
+    my $R = $I->RING;
+
+
+    my @C = map(new Cloud(POLYNOMIAL=>$_), @F);
+    
+    # $v = findParallelEdge($C1, $C2);
+    # $v = primitive($v);
+
+    # $C3 = step1($C1, $C2, $v);
+
+    # $p3 = cloud2poly_in_ring($C3, $R);
+
+    # $Ups = tropPreVar($p1, $p2, $p3);
+
+    # TODO
+    warn "todo!";
+
+    return $Sigma;
 }
 
 
