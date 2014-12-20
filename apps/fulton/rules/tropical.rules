@@ -85,11 +85,11 @@ user_function tropvarproj2(Ideal){
 
     # compute the prevar
     my @F = @{$I->GENERATORS};
-    my $Sigma = tropPreVar(@F);
+    my $Sigma = tropical_prevariety(@F);
 
     # refine it with the 'edge-killer' algorithm:
     if(d != $Sigma->DIM){
-	$Sigma = edgeKiller($Sigma);
+	$Sigma = edgeKiller($Sigma, $I);
     }
 
     # compute first allprojections
@@ -124,20 +124,31 @@ user_function edgeKiller(PolyhedralFan, Ideal){
 
 
     my @C = map(new Cloud(POLYNOMIAL=>$_), @F);
+    my $i = 0;
+    my $C1 = $C[$i];
+
+    my $SigmaNew = $Sigma;
     
-    # $v = findParallelEdge($C1, $C2);
-    # $v = primitive($v);
+    for(my $k=1; $k<@C; ++$k){
+	my $C2 = $C[$k];
 
-    # $C3 = step1($C1, $C2, $v);
+	my $v = primitive(findParallelEdge($C1, $C2));
 
-    # $p3 = cloud2poly_in_ring($C3, $R);
+	if($v != zero_vector(42)){
+	    my $C3 = step1($C1, $C2, $v);
+	    my $h3 = cloud2poly_in_ring($C3, $R);
+		
+	    $SigmaNew = intersect_fans($SigmaNew, tropical_hypersurface($h3)); 
+	}
+    }
 
-    # $Ups = tropPreVar($p1, $p2, $p3);
+
+    
 
     # TODO
     warn "todo!";
 
-    return $Sigma;
+    return $SigmaNew;
 }
 
 
