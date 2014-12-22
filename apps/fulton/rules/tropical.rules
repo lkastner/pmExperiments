@@ -82,6 +82,7 @@ user_function tropvarproj2(Ideal){
 
     singular_eval($sing);    
     my $d = new Int(singular_get_var("d"));
+    my $r = $R->n_vars;    
 
     # compute the prevar
     my @F = @{$I->GENERATORS};
@@ -89,7 +90,10 @@ user_function tropvarproj2(Ideal){
 
     # refine it with the 'edge-killer' algorithm:
     if(d != $Sigma->DIM){
-	$Sigma = edgeKiller($Sigma, $I);
+	my @LL = edgeKiller($Sigma, $I);
+	$Sigma = $LL[0];
+	my @G = @{$LL[1]};
+	@F = @G;
     }
 
     # compute first allprojections
@@ -119,7 +123,7 @@ user_function tropvarproj2(Ideal){
 user_function edgeKiller(PolyhedralFan, Ideal){
     my ($Sigma, $I) = @_;
 
-    my @F = $I->GENERATTORS;
+    my @F = @{$I->GENERATORS};
     my $R = $I->RING;
 
 
@@ -138,7 +142,8 @@ user_function edgeKiller(PolyhedralFan, Ideal){
 	    my $C3 = step1($C1, $C2, $v);
 	    my $h3 = cloud2poly_in_ring($C3, $R);
 		
-	    $SigmaNew = intersect_fans($SigmaNew, tropical_hypersurface($h3)); 
+	    $SigmaNew = intersect_fans($SigmaNew, tropical_hypersurface($h3));
+	    unshift @F, $h3;
 	}
     }
 
@@ -146,9 +151,9 @@ user_function edgeKiller(PolyhedralFan, Ideal){
     
 
     # TODO
-    warn "todo!";
+    #warn "todo!";
 
-    return $SigmaNew;
+    return ($SigmaNew, \@F);
 }
 
 
