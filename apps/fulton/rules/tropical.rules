@@ -106,6 +106,12 @@ user_function tropvarproj2(Ideal){
 	print "count: $count, no of elements:" . @F . "\n";
 	
 	my $A = pop @projs;
+	print @projs;
+	print " " . @projs;
+	print "in proj2: vor pushpull, A=, I=\n";
+	print " " . $A;
+	print $I->GENERATORS;
+	
 	my ($h, $succ) = pushpull($I, $A);
 	
 	if($succ && isGeomReg($A, $Sigma)){ # this condition is new in this version of the algo
