@@ -113,6 +113,68 @@ user_function random_non_tropical_basis( Ring ){
 }
 
 
+user_function random_non_tropical_basis_higher_dimension(Ring){
+   my($R) = @_;
+   warn "We will not deliver the tropical basis, only for three dimensionals.";
+   my $RDim = $R->n_vars();
+   $RDim > 2 or die "No non-trivial things here, dear friend.";
+   $RDim > 3 or return random_non_tropical_basis($R);
+   my $start = 0;
+   my $end = 5;
+   my $root = zero_vector<Int>($R->n_vars);
+   my $top = $end * ones_vector<Int>($R->n_vars);
+   my $f1 = new Monomial($root, $R);
+   my $f2 = new Monomial($top, $R);
+   my $g1 = new Monomial($root, $R);
+   my $g2 = new Monomial($top, $R);
+   for(my $i = 0; $i<$R->n_vars; $i++){
+      $f1 = $f1 + int(rand(3)) * (new Monomial((2 * unit_vector<Int>($R->n_vars, $i)), $R));
+      $g1 = $g1 + int(rand(3)) * (new Monomial((5 * unit_vector<Int>($R->n_vars, $i)), $R));
+      $f2 = $f2 + int(rand(3)) * (new Monomial($top - (2 * unit_vector<Int>($R->n_vars, $i)), $R));
+      $g2 = $g2 + int(rand(3)) * (new Monomial($top - (5 * unit_vector<Int>($R->n_vars, $i)), $R));
+   }
+   my $f = $f1+$f2+random_box_polynomial($start, $end, $R);
+   my $g = $g1+$g2+random_box_polynomial($start, $end, $R);
+   return new Ideal(GENERATORS=>[$f, $g]);
+   # print "Prime check.\n";
+   # if(check_prime_with_M2($R, $f, $g)){
+   #    return new Ideal(GENERATORS=>[$f, $g]);
+   # } else {
+   #    print "Ideal not prime.\n";
+   # }
+   
+}
+
+sub random_box_polynomial{
+   my($start, $end, $ring) = @_;
+   my $numpoints = int(rand($ring->n_vars))+3;
+   print "Numpoints: ",$numpoints,"\n";
+   my $coeffs = random_box_point(-2,2,$numpoints);
+   $coeffs = new Vector(map($_ == 0 ? 1:$_ , @$coeffs));
+   my @exponents = ();
+   while($numpoints > 0){
+      push @exponents, random_box_point($start, $end, $ring->n_vars);
+      $numpoints--;
+   }
+   my $exponents = new Matrix<Int>(@exponents);
+   # print "Exponents:\n",$exponents,"\nCoeffs\n",$coeffs,"\n\n";
+   return new Polynomial($exponents, $coeffs, $ring);
+}
+
+sub random_box_point{
+   my($start, $end, $dim) = @_;
+   my $counter = 0;
+   my @result = ();
+   while($counter < $dim){
+      my $entry = int(rand($end-$start))+$start;
+      push @result, $entry;
+      $counter++;
+   }
+   return new Vector(@result);
+}
+
+
+
 user_function get_coordinate_projections($ , $ ){
    my($n, $d) = @_;
    my @subsets = all_subsets_of_k($d+1, 0..($n-1));
@@ -460,6 +522,7 @@ user_function intersect_fans( @ ){
             }
          }
       }
+      print "Intersections done.\n";
       $lineality == 0 or return check_fan_objects(@resultCones);
       my $rays = unique_rays(@resultCones);
       my @cones = ray_indices($rays, @resultCones);

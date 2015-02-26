@@ -1,5 +1,17 @@
 use List::MoreUtils;
 
+declare object ExtMonomial;
+
+object ExtMonomial{
+   
+   property DEGREE : Vector;
+
+   property PATH : Matrix;
+
+   property SOURCE : Vector;
+
+}
+
 
 declare object ResolutionData;
 
@@ -9,7 +21,7 @@ object ResolutionData {
 
    property LABELS : String;
    
-   property GRAPH : Graph<Directed>;
+   property QUIVER : Graph<Directed>;
 
    property INCIDENCE_MATRIX : Matrix;
 
@@ -85,7 +97,7 @@ object CyclicQuotient {
       $this->RESOLUTION->WEIGHTED_EDGES = $weighted_edges;
    }
 
-   rule RESOLUTION.GRAPH.ADJACENCY, RESOLUTION.GRAPH.NODE_LABELS : CLASS_GROUP_REPRESENTATIVES, N, RESOLUTION.WEIGHTED_EDGES{
+   rule RESOLUTION.QUIVER.ADJACENCY, RESOLUTION.QUIVER.NODE_LABELS : CLASS_GROUP_REPRESENTATIVES, N, RESOLUTION.WEIGHTED_EDGES{
       my $class_group = $this->CLASS_GROUP_REPRESENTATIVES;
       my $graph = new common::Graph<Directed>($class_group->rows);
       my $weighted_edges = $this->RESOLUTION->WEIGHTED_EDGES;
@@ -100,8 +112,8 @@ object CyclicQuotient {
          my $target = $edge->[1];
          $graph->edge($numbering->{$source}, $numbering->{$target});
       }
-      $this->RESOLUTION->GRAPH->NODE_LABELS = @$class_group;
-      $this->RESOLUTION->GRAPH->ADJACENCY = $graph;
+      $this->RESOLUTION->QUIVER->NODE_LABELS = @$class_group;
+      $this->RESOLUTION->QUIVER->ADJACENCY = $graph;
    }
 
    user_method ext1(TDivisor, TDivisor){
@@ -127,6 +139,60 @@ object CyclicQuotient {
          @result = (@result, @{$intersection->LATTICE_POINTS->minor(All,~[0])});
       }
       return new Matrix(uniq(@result));
+   }
+
+   user_method multiply(ExtMonomial, ExtMonomial){
+      my($cqs, $b, $a) = @_;
+      my $weightedEdges = $cqs->RESOLUTION->WEIGHTED_EDGES;
+      my $facets = new Matrix<Rational>(primitive($cqs->RAYS));
+      my $resultPath = $a->PATH;
+      # print "Path is:\n",$resultPath,"\n";
+      my $last = $resultPath->[$resultPath->rows - 1];
+      for(my $i = 0; $i<$b->PATH->rows; $i++){
+         my $bi = vertex_from_ineq($b->PATH->[$i], $facets);
+         $bi = $bi - $a->DEGREE;
+         $bi = ineq_from_vertex($bi, $facets);
+         # print "bi: ",$bi,"\n";
+         my @S = find_incoming_arrows($last, $weightedEdges, $facets);
+         # print "S:\n",join("\n",@S),"\n\n";
+         @S = grep(($_->[0] <= $bi->[0]) && ($_->[1] <= $bi->[1]),@S);
+         # print "S:\n",join("\n",@S),"\n\n";
+         if(@S == 1){
+            $last = pop @S;
+            $resultPath = $resultPath/$last;
+         } else {
+            return 0;
+         }
+      }
+      my $d1 = $cqs->add('DIVISOR',COEFFICIENTS=>$last);
+      my $d2 = $cqs->add('DIVISOR',COEFFICIENTS=>$b->SOURCE);
+      my $possibleDegrees = $cqs->ext1($d1, $d2);
+      # print "Possible Degrees:\n",$possibleDegrees,"\n";
+      my $resultDegree = $a->DEGREE + $b->DEGREE;
+      if(grep($_ == $resultDegree, @$possibleDegrees) == 1){
+         return new ExtMonomial(DEGREE=>$resultDegree, PATH=>$resultPath, SOURCE=>$b->SOURCE);
+      } else {
+         return 0;
+      }
+   }
+   
+   user_method print_monomial_nicely(ExtMonomial){
+      my($cqs, $monomial) = @_;
+      my $facets = new Matrix<Rational>(primitive($cqs->RAYS));
+      my $n = $cqs->N;
+      print "([",join(",",@{$monomial->DEGREE}),"], ";
+      for(my $i=$monomial->PATH->rows-1; $i>=0; $i--){
+         my $current = $monomial->PATH->[$i];
+         my($ei, $shift) = find_lineq_ei($current, $facets, $n);
+         my $index = -$ei->[0];
+         print "E",$index,"[",join(",",@$shift),"]";
+         if($i>0){
+            print "->";
+         }
+      }
+      print ", ";
+      my($sourceEi, $sourceShift) = find_lineq_ei($monomial->SOURCE, $facets, $n);
+      print "E",-$sourceEi->[0],"[",join(",",@$sourceShift),"])\n";
    }
 
 }
@@ -162,6 +228,49 @@ user_function ext1_mat_from_dcf(Vector<Integer>){
    my $result = ($upper_left | $A) / (transpose($A) | $lower_right);
    $result = $result + upper_triangular_ones_matrix($result->rows);
    return new Matrix($result);
+}
+
+sub vertex_from_ineq{
+   my($val, $facets) = @_;
+   my $p = new Polytope(INEQUALITIES=>($val | $facets));
+   return $p->VERTICES->[0]->slice(1);
+}
+
+sub ineq_from_vertex{
+   my($vertex, $facets) = @_;
+   return -$facets * $vertex;
+}
+
+sub are_linearly_equivalent{
+   my($div1, $div2, $facets) = @_;
+   my $v1 = vertex_from_ineq($div1, $facets);
+   my $v2 = vertex_from_ineq($div2, $facets);
+   return is_integral($v1-$v2);
+}
+
+sub find_lineq_ei{
+   my($div, $facets, $n) = @_;
+   for(my $i=0; $i<$n; $i++){
+      my $candidate = new Vector(-$i, 0);
+      if(are_linearly_equivalent($div, $candidate, $facets)){
+         my $shift = vertex_from_ineq($div, $facets) - vertex_from_ineq($candidate, $facets);
+         return($candidate, $shift);
+      }
+   }
+   die "No fitting candidate.";
+}
+
+sub find_incoming_arrows{
+   my($div, $weightedEdges, $facets) = @_;
+   my @selected = grep($_->[1] == $div, keys %$weightedEdges);
+   # print "Selection done.\n";
+   my @result = map{
+      my $sourceVertex = vertex_from_ineq($_->[0], $facets);
+      # print "Have source vertex.\n";
+      my $degrees = $weightedEdges->{$_};
+      map($_+$sourceVertex, @$degrees);
+   }@selected;
+   return map(ineq_from_vertex($_, $facets), @result);
 }
 
 sub upper_triangular_ones_matrix{
