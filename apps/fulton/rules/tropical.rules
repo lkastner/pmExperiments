@@ -1,5 +1,6 @@
 
-# compute the tropical variety
+# compute the tropical variety and a tropical basis
+# according to algorithm I:
 user_function tropvarproj(Ideal){
     my($I) = @_;
 
@@ -47,9 +48,207 @@ user_function tropvarproj(Ideal){
 }
 
 
+user_function isGeomReg(Matrix, PolyhedralFan){
+    my ($A, $Sigma) = @_;
+
+    $Sigma->LINEALITY_DIM == 0
+	or die "Does not work for non-pointed fans at the moment.";
+    
+    # the image fan under A:
+    my @maximalCones = maximal_cones_of_fan($Sigma);
+    @maximalCones = map((new Cone(INPUT_RAYS=>$_->RAYS*transpose($A))), @maximalCones);
+    my $projectedFan = check_fan_objects(@maximalCones);
+
+    return 0 
+	unless 
+	$projectedFan && 
+	$projectedFan->N_RAYS == $Sigma->N_RAYS &&
+	$projectedFan->N_MAXIMAL_CONES == $Sigma->N_MAXIMAL_CONES;
+
+    return 1;   
+}
+
+
+# compute the tropical variety and a tropical basis
+# according to algorithm II:
+user_function tropvarproj2(Ideal){
+    my($I) = @_;
+
+    # compute the dimension of I:
+    my $R = $I->RING;
+    my $sing = "ring R = 0,(" . join(",", $R->variables) . "),dp;\n";
+    $sing .= "ideal I = " . join(",", @{$I->GENERATORS}) . ";\n";
+    $sing .= "int d = dim(std(I));\n";
+
+    singular_eval($sing);    
+    my $d = new Int(singular_get_var("d"));
+    my $r = $R->n_vars;    
+
+    # compute the prevar
+    my @F = @{$I->GENERATORS};
+    my $Sigma = tropical_prevariety(@F);
+
+    # refine it with the 'edge-killer' algorithm:
+    if(d != $Sigma->DIM){
+	my @LL = edgeKiller($Sigma, $I);
+	$Sigma = $LL[0];
+	my @G = @{$LL[1]};
+	@F = @G;
+    }
+
+    # compute first allprojections
+    # but choose only the Sigma-geom-regular ones:
+    my @projs = get_coordinate_projections($r, $d);
+    my $count = 0;
+
+    while ($count < $r-$d || $Sigma->DIM > $d){
+
+	print "count: $count, no of elements:" . @F . "\n";
+	
+	my $A = pop @projs;
+	print @projs;
+	print " " . @projs;
+	print "in proj2: vor pushpull, A=, I=\n";
+	print " " . $A;
+	print $I->GENERATORS;
+	
+	my ($h, $succ) = pushpull($I, $A);
+	
+	if($succ && isGeomReg($A, $Sigma)){ # this condition is new in this version of the algo
+	    unshift @F, $h;
+	    $count++;
+
+	    $Sigma = intersect_fans($Sigma, tropical_hypersurface($h));
+	}
+    }
+    
+    return ($Sigma, new Ideal(GENERATORS=>\@F));
+}
+
+
+user_function edgeKiller(PolyhedralFan, Ideal){
+    my ($Sigma, $I) = @_;
+
+    my @F = @{$I->GENERATORS};
+    my $R = $I->RING;
+
+
+    my @C = map(new Cloud(POLYNOMIAL=>$_), @F);
+    my $i = 0;
+    my $C1 = $C[$i];
+
+    my $SigmaNew = $Sigma;
+    
+    for(my $k=1; $k<@C; ++$k){
+	my $C2 = $C[$k];
+
+	my $v = primitive(findParallelEdge($C1, $C2));
+
+	if($v != zero_vector(42)){
+	    my $C3 = step1($C1, $C2, $v);
+	    my $h3 = cloud2poly_in_ring($C3, $R);
+		
+	    $SigmaNew = intersect_fans($SigmaNew, tropical_hypersurface($h3));
+	    unshift @F, $h3;
+	}
+    }
+
+
+    
+
+    # TODO
+    #warn "todo!";
+
+    return ($SigmaNew, \@F);
+}
+
+
+user_function isNonnegMat(Matrix){
+    my $A = shift @_;
+
+    foreach (@$A){
+	for(my $k=0; $k<$A->cols; ++$k){
+	    return 0
+		unless $_->[$k] >= 0;
+	}
+    }
+
+    return 1;
+}
+
+
 # compute the pull-back of the push forward of the ideal 
 # under the given matrix
 user_function pushpull(Ideal, Matrix){
+    my($I, $A) = @_;
+
+    my $R = $I->RING;
+
+    my @vars = $R->variables;
+    my @inv = map($_ . "inv" , @vars);
+    
+    my @monomials = map(new Monomial((new Vector<Int>($_)), $R), @$A);
+    
+    
+    # if A is nonnegative, then it suffices to work in the polynomial ring.
+    # else: switch to laurent polynomial ring
+    my $sing = "";
+    if(isNonnegMat($A)){
+	$sing .= "ring R = 0,(" . join(",", $R->variables) . "),dp;\n";
+    } else {    
+	$sing .= "ring R0 = 0,(" . join(",", $R->variables) . ", " . join(",", @inv) . "),dp;\n";
+	$sing .= "ideal J = " ;
+
+	for(my $k = 0; $k < @inv-1; $k++){
+	    $sing .= $vars[$k] . "*" . $inv[$k] . "-1, ";
+	}
+	
+	$sing .= $vars[@inv-1] . "*" . $inv[@inv-1] . "-1;\n";  
+	$sing .= "qring R = std(J);\n";
+    }
+    
+    $sing .= "ideal I = " . join(",", @{$I->GENERATORS}) . ";\n";
+    $sing .= "ring S = 0,(T(1.." . $A->rows . ")),dp;\n";
+    $sing .= "setring R;\n";
+    $sing .= "map f = S, " . join(",", @monomials) .  ";\n";
+    $sing .= "setring S;\n";
+    $sing .= "ideal J = preimage(R, f, I);\n";
+    $sing .= "poly g = J[1];\n";
+    $sing .= "setring R;\n";
+    $sing .= "poly h = f(g);\n";
+
+    $sing =~ s/\^-([0-9]+)/inv\^$1/g;
+
+    print $sing . "\n";
+    
+    singular_eval($sing);
+
+    my $h = get_singular_poly("h", $R);
+
+    # check whether J is principal:
+    $sing = "setring S;\n";
+    $sing .= "int n = size(J);\n";
+    $sing .= "kill R;\n";
+
+    singular_eval($sing);
+
+    my $n = singular_get_var("n");
+
+    $n == 1
+	or warn "Ideal is not principal. Is the projection geometrically regular?";
+    
+    #print $h . "\n";
+    #print $sing . "\n";
+    #print join(",", @monomials), "\n";
+
+    return ($h, $n==1);
+}
+
+
+
+# compute the pull-back of the push forward of the ideal 
+# under the given matrix
+user_function pushpullOLD(Ideal, Matrix){
     my($I, $A) = @_;
 
     my $R = $I->RING;
@@ -64,6 +263,8 @@ user_function pushpull(Ideal, Matrix){
     $sing .= "poly g = J[1];\n";
     $sing .= "setring R;\n";
     $sing .= "poly h = f(g);\n";
+
+    print $sing . "\n";
     
     singular_eval($sing);
 
