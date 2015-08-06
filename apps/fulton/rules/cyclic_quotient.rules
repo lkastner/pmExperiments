@@ -1,4 +1,4 @@
-use List::MoreUtils;
+use List::MoreUtils qw(uniq);
 
 declare object ExtMonomial;
 
@@ -36,7 +36,7 @@ object CyclicQuotient {
    rule CLASS_GROUP_REPRESENTATIVES : N, Q{
       my $n = $this->N;
       my $q = $this->Q;
-      my @class_group = map((new Vector(-$_, 0)),1..(new Int($n)));
+      my @class_group = map((new Vector(-$_, 0)),1..(convert_to<Int>($n)));
       $this->CLASS_GROUP_REPRESENTATIVES = new Matrix<Rational>(@class_group);
    }
 
@@ -60,7 +60,7 @@ object CyclicQuotient {
    rule RESOLUTION.INCIDENCE_MATRIX : N, RESOLUTION.WEIGHTED_EDGES{
       my $n = $this->N;
       my $weighted_edges = $this->RESOLUTION->WEIGHTED_EDGES;
-      my $incidence_matrix = new Matrix(new Int($n), new Int($n));
+      my $incidence_matrix = new Matrix((convert_to<Int>($n)), (convert_to<Int>($n)));
       foreach my $edge (keys %$weighted_edges){
          my $source = $edge->[0];
          my $target = $edge->[1];
@@ -178,6 +178,10 @@ object CyclicQuotient {
    
    user_method print_monomial_nicely(ExtMonomial){
       my($cqs, $monomial) = @_;
+      if($monomial == 0){
+         print "0\n";
+         return;
+      }
       my $facets = new Matrix<Rational>(primitive($cqs->RAYS));
       my $n = $cqs->N;
       print "([",join(",",@{$monomial->DEGREE}),"], ";
@@ -213,7 +217,12 @@ user_function ext1_mat_from_dcf(Vector<Integer>){
    }
    $dcf->[$length-1]--;
    my @dcf = @$dcf;
-   my $upper_left_dcf = new Vector<Integer>(@dcf[0..($length-2)]);
+   my $upper_left_dcf = 0;
+   if($length>1){
+      $upper_left_dcf = new Vector<Integer>($dcf->slice(0,$length-1));
+   } else {
+      $upper_left_dcf = zero_vector<Integer>(0);
+   }
    my $lower_right_dcf = new Vector<Integer>(\@dcf);
    my $upper_left = ext1_mat_from_dcf($upper_left_dcf);
    my $lower_right = ext1_mat_from_dcf($lower_right_dcf);

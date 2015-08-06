@@ -89,7 +89,7 @@ user_function tropvarproj2(Ideal){
     my $Sigma = tropical_prevariety(@F);
 
     # refine it with the 'edge-killer' algorithm:
-    if(d != $Sigma->DIM){
+    if($d != $Sigma->DIM){
 	my @LL = edgeKiller($Sigma, $I);
 	$Sigma = $LL[0];
 	my @G = @{$LL[1]};
