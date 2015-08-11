@@ -1,0 +1,123 @@
+#  Copyright (c) 2012
+#  by authors as mentioned on:
+#  https://github.com/lkastner/polymake_toric/wiki/Authors
+#  
+#  Project home:
+#  https://github.com/lkastner/polymake_toric
+#
+#  For licensing we cite the original Polymake code:
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the
+#  Free Software Foundation; either version 2, or (at your option) any
+#  later version: http://www.gnu.org/licenses/gpl.txt.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+
+declare object DGLA_step;
+
+object DGLA_step{
+   
+   property PREVIOUS_STEP : DGLA_step;
+
+   property Y_VARS : Matrix;
+
+   property BASIS0 : Array<Matrix>;
+
+   property DEG0 : Int;
+
+   property DEG1 : Int;
+
+   rule DEG1 : DEG0 {
+      $this->DEG1 = $this->DEG0 + 1;
+   }
+
+   property KOSZUL_BASIS : Array<Matrix>;
+   
+   property KOSZUL_IMAGE : Matrix<Polynomial>;
+
+   property BASIS1 : Array<Matrix>;
+
+   property MAP : Matrix<Polynomial>;
+   
+   property KERNEL : Matrix<Polynomial>;
+
+   property REDUCED_KERNEL : Matrix<Polynomial>;
+
+   property BASERING : Ring;
+   
+   rule BASIS0 : PREVIOUS_STEP.BASIS1 {
+      $this->BASIS0 = $this->PREVIOUS_STEP->BASIS1;
+   }
+
+   rule DEG0 : PREVIOUS_STEP.DEG1 {
+      $this->DEG0 = $this->PREVIOUS_STEP->DEG1;
+   }
+
+   rule BASIS1 : KOSZUL_BASIS, DEG1, REDUCED_KERNEL {
+      # TODO
+      # Append new variables for every kernel element.
+   }
+
+   rule MAP : KOSZUL_IMAGE, REDUCED_KERNEL {
+      $this->MAP = new Matrix($this->KOSZUL_IMAGE | $this->REDUCED_KERNEL);
+   }
+
+   rule KOSZUL_BASIS : PREVIOUS_STEP.Y_VARS, DEG1 {
+      my $oldYs = $this->PREVIOUS_STEP->Y_VARS;
+      my $d = $this->DEG1;
+      # print $d,"\n";
+      my $ineq = zero_vector($oldYs->rows) | unit_matrix($oldYs->rows);
+      # print "Ineq:\n",$ineq,"\n";
+      my $eq = ((-1)*$d) | $oldYs->col(0);
+      # print "Eq:\n",$eq,"\n";
+      my $testPolytope = new Polytope(INEQUALITIES=>$ineq, EQUATIONS=>$eq);
+      my $lps = $testPolytope->LATTICE_POINTS->minor(All, ~[0]);
+      my @monomials = map(monomial_exponent_from_vector_and_vars($_, $oldYs), @$lps);
+      # print join("\n\n", @monomials);
+      $this->KOSZUL_BASIS = new Array<Matrix>([@monomials]);
+   }
+
+}
+
+sub monomial_exponent_from_vector_and_vars{
+   my($ve, $var) = @_;
+   my $vec = new Vector($ve);
+   my $vars = new Matrix($var);
+   ($vec->dim == $vars->rows) or die "Cannot convert from vector to monomial.";
+   my $result = new Matrix(0,3);
+   for(my $i = 0; $i<$vec->dim; $i++){
+      if($vec->[$i] != 0){
+         my $toadd = $vars->[$i] | $vec->[$i];
+         $result = new Matrix($result / $toadd);
+      }
+   }
+   return $result;
+}
+
+
+
+
+user_function initialize_dgla(Cone){
+   my($c) = @_;
+   my $ideal = $c->TORIC_IDEAL;
+   print $ideal,"\n";
+   my @vars = map("x_".$_, 0..($ideal->cols - 1));
+   my $R = new Ring(@vars);
+   my @polys = map(vector_to_binomial_string($_, @vars), @$ideal);
+   @polys = map((new Polynomial($R, $_)), @polys);
+
+   my $Map = new Matrix<Polynomial>([[@polys]]);
+   my $basis0 = new Array<Matrix>([zero_matrix(0,0)]);
+   my @y1s = map((new Matrix([[1,$_]])), (0..($Map->cols - 1)));
+   my @y1sWPow = map(($_ | ones_vector(1)), @y1s);
+   my $basis1 = new Array<Matrix>([@y1sWPow]);
+   
+   my $y1mat = new Matrix(map($_->[0], @y1s));
+
+   return new DGLA_step(BASIS0=>$basis0, MAP=>$Map, BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0);
+
+}
