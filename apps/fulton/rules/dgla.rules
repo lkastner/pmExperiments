@@ -19,6 +19,34 @@
 
 declare object DGLA_step;
 
+declare object DGLA_singular_object;
+
+object DGLA_singular_object {
+   
+   property RING : String;
+   
+   # The morphism will be encoded as a matrix in Singular, since the involved
+   # modules are free. Then we can compute the kernel.
+   property MORPHISM : String;
+
+   property KERNEL : String;
+
+   property KOSZUL_IMAGE : String;
+
+   property REDUCED_KERNEL : String;
+
+   rule REDUCED_KERNEL : KERNEL, KOSZUL_IMAGE {
+      # TODO
+      # Compute standard basis of koszul image.
+      # Reduce kernel module image.
+   }
+   
+   # TODO
+   # Retrieve the singular matrices as polymake matrices of polynomials.
+   
+}
+
+
 object DGLA_step{
    
    property PREVIOUS_STEP : DGLA_step;
@@ -49,6 +77,17 @@ object DGLA_step{
 
    property BASERING : Ring;
    
+   property SINGULAR_REFS : DGLA_singular_object;
+
+   rule SINGULAR_REFS.RING : BASERING {
+      # Write polymake ring to singular.
+   }
+
+   rule SINGULAR_REFS.MORPHISM : SINGULAR_REFS.RING, MAP {
+      # 1. Set polynomial ring.
+      # 2. Write matrix to singular.
+   }
+
    rule BASIS0 : PREVIOUS_STEP.BASIS1 {
       $this->BASIS0 = $this->PREVIOUS_STEP->BASIS1;
    }
