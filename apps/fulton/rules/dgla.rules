@@ -53,7 +53,7 @@ object DGLA_step{
 
    property Y_VARS : Matrix;
 
-   property BASIS0 : Array<Matrix>;
+   property BASIS0 : Vector<Matrix>;
 
    property DEG0 : Int;
 
@@ -63,11 +63,11 @@ object DGLA_step{
       $this->DEG1 = $this->DEG0 + 1;
    }
 
-   property KOSZUL_BASIS : Array<Matrix>;
+   property KOSZUL_BASIS : Vector<Matrix>;
    
    property KOSZUL_IMAGE : Matrix<Polynomial>;
 
-   property BASIS1 : Array<Matrix>;
+   property BASIS1 : Vector<Matrix>;
 
    property MAP : Matrix<Polynomial>;
    
@@ -117,9 +117,55 @@ object DGLA_step{
       my $lps = $testPolytope->LATTICE_POINTS->minor(All, ~[0]);
       my @monomials = map(monomial_exponent_from_vector_and_vars($_, $oldYs), @$lps);
       # print join("\n\n", @monomials);
-      $this->KOSZUL_BASIS = new Array<Matrix>([@monomials]);
+      $this->KOSZUL_BASIS = new Vector<Matrix>([@monomials]);
    }
 
+   rule KOSZUL_IMAGE : KOSZUL_BASIS, PREVIOUS_STEP {
+      my $kb = $this->KOSZUL_BASIS;
+      my $prevDGLA = $this->PREVIOUS_STEP;
+      foreach my $element (@$kb){
+         print "Current monomial:\n",$element,"\n";
+         my ($a, $b) = split_monomial($element);
+         print "Split into\n",$a,"\nand\n",$b,"\n";
+         my $aImage = get_image_of_monomial($a, $prevDGLA);
+         my $bImage = get_image_of_monomial($b, $prevDGLA);
+         print "Images are:\n",$aImage,"\nand\n",$bImage,"\n";
+      }
+   }
+
+}
+
+sub product_and_sign_of_var_with_mon{
+   my($var, $mon) = @_;
+   my $i = 0;
+   while(($var->[0] > $mon->($i, 0)) and ($i < $mon->[rows])){$i++;}
+   while(($var->[0] > $mon->($i, 0)) and ($i < $mon->[rows])){$i++;}
+}
+
+sub get_image_of_monomial{
+   my($monomial, $dgla) = @_;
+   my $degree = degree_of_monomial($monomial);
+   if($dgla->DEG1 == $degree){
+      for(my $i=0; $i< $dgla->BASIS1->dim; $i++){
+         if($monomial == $dgla->BASIS1->[$i]){
+            return $dgla->MAP->[$i];
+         }
+      }
+   } elsif ($dgla->DEG1 > $degree) {
+      return get_image_of_monomial($monomial, $dgla->PREVIOUS_STEP);
+   } 
+   die "Could not find image of monomial $monomial.";
+}
+
+sub degree_of_monomial{
+   my($monomial) = @_;
+   my $result = 0;
+   foreach my $varpow (@$monomial){
+      my $vardeg = $varpow->[0];
+      my $pow = $varpow->[2];
+      $result += $vardeg*$pow;
+   }
+   return $result;
 }
 
 sub monomial_exponent_from_vector_and_vars{
@@ -137,7 +183,18 @@ sub monomial_exponent_from_vector_and_vars{
    return $result;
 }
 
-
+sub split_monomial{
+   my($monomial) = @_;
+   my $first = new Matrix([$monomial->[0]]);
+   my $rest = new Matrix($monomial);
+   if($first->(0,2) == 1){
+      $rest = $rest->minor(~[0], All);
+   } else {
+      $rest->(0,2)--;
+      $first->(0,2) = 1;
+   }
+   return ($first, $rest);
+}
 
 
 user_function initialize_dgla(Cone){
@@ -150,13 +207,15 @@ user_function initialize_dgla(Cone){
    @polys = map((new Polynomial($R, $_)), @polys);
 
    my $Map = new Matrix<Polynomial>([[@polys]]);
-   my $basis0 = new Array<Matrix>([zero_matrix(0,0)]);
+   my $basis0 = new Vector<Matrix>([zero_matrix(0,0)]);
    my @y1s = map((new Matrix([[1,$_]])), (0..($Map->cols - 1)));
    my @y1sWPow = map(($_ | ones_vector(1)), @y1s);
-   my $basis1 = new Array<Matrix>([@y1sWPow]);
+   my $basis1 = new Vector<Matrix>([@y1sWPow]);
    
    my $y1mat = new Matrix(map($_->[0], @y1s));
 
-   return new DGLA_step(BASIS0=>$basis0, MAP=>$Map, BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0);
+   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0);
 
 }
+
+
