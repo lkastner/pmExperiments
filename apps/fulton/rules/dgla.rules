@@ -127,20 +127,66 @@ object DGLA_step{
          print "Current monomial:\n",$element,"\n";
          my ($a, $b) = split_monomial($element);
          print "Split into\n",$a,"\nand\n",$b,"\n";
-         my $aImage = get_image_of_monomial($a, $prevDGLA);
-         my $bImage = get_image_of_monomial($b, $prevDGLA);
+         my ($aImage, $aImageBasis) = get_image_of_monomial(new Matrix([$a]), $prevDGLA);
+         my ($bImage, $bImageBasis) = get_image_of_monomial($b, $prevDGLA);
          print "Images are:\n",$aImage,"\nand\n",$bImage,"\n";
       }
    }
 
 }
 
+
+
 sub product_and_sign_of_var_with_mon{
+   # Get the sign and resulting sorted(!) monomial, when multiplying var*mon.
    my($var, $mon) = @_;
+   if($mon == zero_matrix(0,3)){
+      return (1, new Matrix([$var]);
+   }
    my $i = 0;
-   while(($var->[0] > $mon->($i, 0)) and ($i < $mon->[rows])){$i++;}
-   while(($var->[0] > $mon->($i, 0)) and ($i < $mon->[rows])){$i++;}
+   while(($i < $mon->rows) and ($var->[0] > $mon->($i, 0))){$i++;}
+   while(($i < $mon->rows) and ($var->[1] > $mon->($i, 1))){$i++;}
+   if($i == 0){
+      return (1, prepend_var_to_mon($var, $mon));
+   } elsif ($i < $mon->rows){
+      my $first = $mon->minor([0..($i-1)], All);
+      my $last = $mon->minor([$i..($mon->rows - 1)], All);
+      my $result = new Matrix($first / prepend_var_to_mon($var, $last));
+      return(find_switchSign($var, $first), $result);
+   } else {
+      return(find_switchSign($var, $mon), new Matrix($mon/$var));
+   }
 }
+
+
+
+sub find_switchSign{
+   # We compute the sign when moving var to the end of monomial mon.
+   my($var, $mon) = @_;
+   my $switchSign = 0;
+   my $vardeg = $var->[0];
+   foreach my $v (@$mon){
+      my $deg = $v->[0];
+      my $pow = $v->[2];
+      $switchSign += $pow*($deg*$vardeg);
+   }
+   return $switchSign%2 == 0 ? 1 : -1;
+}
+
+
+
+sub prepend_var_to_mon{
+   my($var, $mon) = @_;
+   my $result = new Matrix($mon);
+   if($mon->[0] == $var) { 
+      $result->(0,2)++;
+   } else {
+      $result = $var/$result;
+   }
+   return $result;
+}
+
+
 
 sub get_image_of_monomial{
    my($monomial, $dgla) = @_;
@@ -148,7 +194,7 @@ sub get_image_of_monomial{
    if($dgla->DEG1 == $degree){
       for(my $i=0; $i< $dgla->BASIS1->dim; $i++){
          if($monomial == $dgla->BASIS1->[$i]){
-            return $dgla->MAP->[$i];
+            return ($dgla->MAP->[$i], $dgla->BASIS0);
          }
       }
    } elsif ($dgla->DEG1 > $degree) {
@@ -156,6 +202,8 @@ sub get_image_of_monomial{
    } 
    die "Could not find image of monomial $monomial.";
 }
+
+
 
 sub degree_of_monomial{
    my($monomial) = @_;
@@ -167,6 +215,8 @@ sub degree_of_monomial{
    }
    return $result;
 }
+
+
 
 sub monomial_exponent_from_vector_and_vars{
    my($ve, $var) = @_;
@@ -183,15 +233,17 @@ sub monomial_exponent_from_vector_and_vars{
    return $result;
 }
 
+
+
 sub split_monomial{
    my($monomial) = @_;
-   my $first = new Matrix([$monomial->[0]]);
+   my $first = $monomial->[0];
    my $rest = new Matrix($monomial);
-   if($first->(0,2) == 1){
+   if($first->[2] == 1){
       $rest = $rest->minor(~[0], All);
    } else {
       $rest->(0,2)--;
-      $first->(0,2) = 1;
+      $first->[2] = 1;
    }
    return ($first, $rest);
 }
@@ -207,7 +259,7 @@ user_function initialize_dgla(Cone){
    @polys = map((new Polynomial($R, $_)), @polys);
 
    my $Map = new Matrix<Polynomial>([[@polys]]);
-   my $basis0 = new Vector<Matrix>([zero_matrix(0,0)]);
+   my $basis0 = new Vector<Matrix>([zero_matrix(0,3)]);
    my @y1s = map((new Matrix([[1,$_]])), (0..($Map->cols - 1)));
    my @y1sWPow = map(($_ | ones_vector(1)), @y1s);
    my $basis1 = new Vector<Matrix>([@y1sWPow]);
