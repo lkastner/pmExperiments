@@ -54,6 +54,17 @@ object DGLA_step{
    property Y_VARS : Matrix;
 
    property BASIS0 : Vector<Matrix>;
+   
+   property BASIS0_INDEX : Map<Matrix, Int>;
+
+   rule BASIS0_INDEX : BASIS0 {
+      my $basis0 = $this->BASIS0;
+      my $result = new Map<Matrix, Int>;
+      for(my $i = 0; $i<$basis0->dim; $i++){
+         $result->{$basis0->[$i]} = $i;
+      }
+      $this->BASIS0_INDEX = $result;
+   }
 
    property DEG0 : Int;
 
@@ -68,6 +79,17 @@ object DGLA_step{
    property KOSZUL_IMAGE : Matrix<Polynomial>;
 
    property BASIS1 : Vector<Matrix>;
+
+   property BASIS1_INDEX : Map<Matrix, Int>;
+
+   rule BASIS1_INDEX : BASIS1 {
+      my $basis1 = $this->BASIS1;
+      my $result = new Map<Matrix, Int>;
+      for(my $i = 0; $i<$basis1->dim; $i++){
+         $result->{$basis1->[$i]} = $i;
+      }
+      $this->BASIS1_INDEX = $result;
+   }
 
    property MAP : Matrix<Polynomial>;
    
@@ -88,8 +110,9 @@ object DGLA_step{
       # 2. Write matrix to singular.
    }
 
-   rule BASIS0 : PREVIOUS_STEP.BASIS1 {
+   rule BASIS0, BASIS0_INDEX : PREVIOUS_STEP.BASIS1, PREVIOUS_STEP.BASIS1_INDEX {
       $this->BASIS0 = $this->PREVIOUS_STEP->BASIS1;
+      $this->BASIS0_INDEX = $this->PREVIOUS_STEP->BASIS1_INDEX;
    }
 
    rule DEG0 : PREVIOUS_STEP.DEG1 {
@@ -110,6 +133,14 @@ object DGLA_step{
       my $d = $this->DEG1;
       # print $d,"\n";
       my $ineq = zero_vector($oldYs->rows) | unit_matrix($oldYs->rows);
+      my $i;
+      foreach my $y (@$oldYs){
+         if((new Int($y->[0]))%2 == 1){
+            my $toadd = unit_vector($oldYs->rows+1,0)-unit_vector($oldYs->rows+1,$i+1);
+            $ineq = new Matrix($ineq/$toadd);
+         }
+         $i++;
+      }
       # print "Ineq:\n",$ineq,"\n";
       my $eq = ((-1)*$d) | $oldYs->col(0);
       # print "Eq:\n",$eq,"\n";
@@ -130,9 +161,45 @@ object DGLA_step{
          my ($aImage, $aImageBasis) = get_image_of_monomial(new Matrix([$a]), $prevDGLA);
          my ($bImage, $bImageBasis) = get_image_of_monomial($b, $prevDGLA);
          print "Images are:\n",$aImage,"\nand\n",$bImage,"\n";
+         foreach my $b (@$bImageBasis){
+            print product_and_sign_of_var_with_mon($a, $b),"\n";
+         }
+
+         foreach my $a (@$aImageBasis){
+            print product_and_sign_of_mon_with_mon($a, $b);
+         }
       }
    }
 
+}
+
+sub display_left_product_in_basis{
+   my($a, $vec, $vecBasis, $newBasisHash) = @_;
+}
+
+
+sub product_and_sign_of_mon_with_mon{
+   my($mon1, $mon2) = @_;
+   my $sign = 1;
+   my $prod = new Matrix($mon1);
+   foreach my $mon (@$mon2) {
+      my $var = new Vector($mon);
+      $var->[2] = 1;
+      for(my $i = 0; $i<$mon->[2]; $i++){
+         my ($a, $b) = product_and_sign_of_mon_with_var($prod, $var);
+         $sign *= $a;
+         $prod = $b;
+      }
+   }
+   return ($sign, $prod);
+}
+
+
+sub product_and_sign_of_mon_with_var{
+   my($mon, $var) = @_;
+   my $sign = find_switchSign($var, $mon);
+   my ($a, $b) = product_and_sign_of_var_with_mon($var, $mon);
+   return ($sign*$a, $b);
 }
 
 
@@ -141,7 +208,7 @@ sub product_and_sign_of_var_with_mon{
    # Get the sign and resulting sorted(!) monomial, when multiplying var*mon.
    my($var, $mon) = @_;
    if($mon == zero_matrix(0,3)){
-      return (1, new Matrix([$var]);
+      return (1, new Matrix([$var]));
    }
    my $i = 0;
    while(($i < $mon->rows) and ($var->[0] > $mon->($i, 0))){$i++;}
@@ -154,7 +221,7 @@ sub product_and_sign_of_var_with_mon{
       my $result = new Matrix($first / prepend_var_to_mon($var, $last));
       return(find_switchSign($var, $first), $result);
    } else {
-      return(find_switchSign($var, $mon), new Matrix($mon/$var));
+      return(find_switchSign($var, $mon), (new Matrix($mon/$var)));
    }
 }
 
@@ -237,7 +304,7 @@ sub monomial_exponent_from_vector_and_vars{
 
 sub split_monomial{
    my($monomial) = @_;
-   my $first = $monomial->[0];
+   my $first = new Vector($monomial->[0]);
    my $rest = new Matrix($monomial);
    if($first->[2] == 1){
       $rest = $rest->minor(~[0], All);
