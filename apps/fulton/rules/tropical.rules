@@ -1,3 +1,94 @@
+user_function edge_elimination(Polynomial, Polynomial){
+   my($f, $g) = @_;
+   my @badCones = find_bad_cones($f, $g);
+   my @result = ($f, $g);
+   foreach my $bc (@badCones) {
+      my $test = build_witness($f, $g, $bc);
+   }
+}
+
+sub build_witness{
+   my($f, $g, $bc) = @_;
+   my $w = ones_vector($bc->RAYS->rows) * ($bc->RAYS);
+   my $fe = get_face_polynomial($f, $w);
+   my $ge = get_face_polynomial($g, $w);
+   my $edgeDirection = get_edge_vector($fe);
+
+
+}
+
+
+sub position_polynomial_at_zero{
+   my($f, $edgeDirection) = @_;
+   my $fExponents = new Matrix<Int>($f->monomials_as_matrix);
+   my $eval = ($fExponents) * $edgeDirection;
+   my $min = minimum($eval);
+   my @indices = grep{$eval->[$_] == $min}@{[0..($eval->dim -1)]};
+   my $index = pop @indices;
+   my $subtract = $fExponents->[$index];
+   my @newExponents = map($_-$subtract, @$fExponents);
+   @newExponents = map{
+      my $i = 0;
+      while(($i*$edgeDirection) != $_){$i++;}
+      new Vector<Int>([$i])
+   }@newExponents;
+   return new Matrix<Int>(@newExponents);
+}
+
+
+sub get_edge_vector{
+   my($f) = @_;
+   my $fExponents = new Matrix<Int>($f->monomials_as_matrix);
+   my $edgeDirection = primitive(new Vector($fExponents->[1] - $fExponents->[0]));
+   return $edgeDirection;
+}
+
+
+sub find_bad_cones{
+   my($f, $g) = @_;
+   my $NDf = normal_fan(newton($f));
+   my $dim = $NDf->AMBIENT_DIM;
+   my @NDfMaxCones = map{
+      my $rays = new Matrix($NDf->RAYS->minor($_, All));
+      new Cone(INPUT_RAYS=>$rays)
+   } @{$NDf->CONES->[$dim-2]};
+   my $NDg = normal_fan(newton($g));
+   my @NDgMaxCones = map{
+      my $rays = new Matrix($NDg->RAYS->minor($_, All));
+      new Cone(INPUT_RAYS=>$rays)
+   } @{$NDg->CONES->[$dim-2]};
+   my @result = ();
+   foreach my $conef (@NDfMaxCones){
+      foreach my $coneg (@NDgMaxCones){
+         my $intersection = intersection($conef, $coneg);
+         my $codim = $intersection->AMBIENT_DIM - $intersection->DIM;
+         if($codim == 1){
+            push @result, $intersection;
+         }
+      }
+   }
+   return @result;
+}
+
+# returns the initial form w.r.t. $w
+sub get_face_polynomial{
+   my($f, $w) = @_;
+   my $R = $f->get_ring;
+   my $fExponents = new Matrix<Int>($f->monomials_as_matrix);
+   my $fCoefficients = $f->coefficients_as_vector;
+   my $v = $fExponents * $w;
+   my $fMax = minimum($v);
+   # print $fMax," ",$f," ",$w,"\n";
+   my @fMaxIndices = grep($fExponents->[$_]*$w == $fMax, 0..($fExponents->rows-1));
+   # print @fMaxIndices,"\n";
+   my $feExponents = $fExponents->minor([@fMaxIndices],All);
+   $feExponents = new Matrix<Int>($feExponents);
+   # print $feExponents,"\n";
+   my @feCoefficients = @{$fCoefficients}[@fMaxIndices];
+   my $feCoefficients = new Vector<Rational>(@feCoefficients);
+   return new Polynomial($feExponents, $feCoefficients, $R);
+}
+
 
 # compute the tropical variety and a tropical basis
 # according to algorithm I:
@@ -493,24 +584,6 @@ sub divide_polys{
    return get_singular_poly("k", $R);
 }
 
-# returns the initial form w.r.t. $w
-sub get_face_polynomial{
-   my($f, $w) = @_;
-   my $R = $f->get_ring;
-   my $fExponents = new Matrix<Int>($f->monomials_as_matrix);
-   my $fCoefficients = $f->coefficients_as_vector;
-   my $v = $fExponents * $w;
-   my $fMax = maximum($v);
-   print $fMax," ",$f," ",$w,"\n";
-   my @fMaxIndices = grep($fExponents->[$_]*$w == $fMax, 0..($fExponents->rows-1));
-   # print @fMaxIndices,"\n";
-   my $feExponents = $fExponents->minor([@fMaxIndices],All);
-   $feExponents = new Matrix<Int>($feExponents);
-   # print $feExponents,"\n";
-   my @feCoefficients = @{$fCoefficients}[@fMaxIndices];
-   my $feCoefficients = new Vector<Rational>(@feCoefficients);
-   return new Polynomial($feExponents, $feCoefficients, $R);
-}
 
 sub get_singular_poly{
    my($name, $ring) = @_;
