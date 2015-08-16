@@ -344,6 +344,24 @@ sub split_monomial{
 }
 
 
+sub get_singular_matrix{
+   my($name, $ring) = @_;
+   singular_eval("int rows = nrows(".$name.");");
+   singular_eval("int cols = ncols(".$name.");");
+   my $rows = singular_get_var("rows");
+   my $cols = singular_get_var("cols");
+   my $result = new Matrix<Polynomial>($rows, $cols);
+   for(my $i = 0; $i<$rows; $i++){
+      for(my $j = 0; $j<$rows; $j++){
+         singular_eval("poly polymake_temp = ".$name."[".($i+1).",".($j+1)."];");
+         my $entry = get_singular_poly("polymake_temp", $ring);
+         $result->($i, $j) = $entry;
+      }
+   }
+   return $result;
+}
+
+
 user_function initialize_dgla(Cone){
    my($c) = @_;
    my $ideal = $c->TORIC_IDEAL;
