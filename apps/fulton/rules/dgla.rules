@@ -110,6 +110,10 @@ object DGLA_step{
       # 2. Write matrix to singular.
    }
 
+   rule BASERING : PREVIOUS_STEP.BASERING {
+      $this->BASERING = $this->PREVIOUS_STEP->BASERING;
+   }
+
    rule BASIS0, BASIS0_INDEX : PREVIOUS_STEP.BASIS1, PREVIOUS_STEP.BASIS1_INDEX {
       $this->BASIS0 = $this->PREVIOUS_STEP->BASIS1;
       $this->BASIS0_INDEX = $this->PREVIOUS_STEP->BASIS1_INDEX;
@@ -125,7 +129,7 @@ object DGLA_step{
    }
 
    rule MAP : KOSZUL_IMAGE, REDUCED_KERNEL {
-      $this->MAP = new Matrix($this->KOSZUL_IMAGE | $this->REDUCED_KERNEL);
+      $this->MAP = new Matrix($this->KOSZUL_IMAGE / $this->REDUCED_KERNEL);
    }
 
    rule KOSZUL_BASIS : PREVIOUS_STEP.Y_VARS, DEG1 {
@@ -151,30 +155,54 @@ object DGLA_step{
       $this->KOSZUL_BASIS = new Vector<Matrix>([@monomials]);
    }
 
-   rule KOSZUL_IMAGE : KOSZUL_BASIS, PREVIOUS_STEP {
+   rule KOSZUL_IMAGE : KOSZUL_BASIS, PREVIOUS_STEP, BASIS0_INDEX, BASERING {
       my $kb = $this->KOSZUL_BASIS;
+      my $R = $this->BASERING;
       my $prevDGLA = $this->PREVIOUS_STEP;
+      my $newBasisHash = $this->BASIS0_INDEX;
+      my @result;
       foreach my $element (@$kb){
          print "Current monomial:\n",$element,"\n";
          my ($a, $b) = split_monomial($element);
          print "Split into\n",$a,"\nand\n",$b,"\n";
          my ($aImage, $aImageBasis) = get_image_of_monomial(new Matrix([$a]), $prevDGLA);
          my ($bImage, $bImageBasis) = get_image_of_monomial($b, $prevDGLA);
-         print "Images are:\n",$aImage,"\nand\n",$bImage,"\n";
-         foreach my $b (@$bImageBasis){
-            print product_and_sign_of_var_with_mon($a, $b),"\n";
-         }
-
-         foreach my $a (@$aImageBasis){
-            print product_and_sign_of_mon_with_mon($a, $b);
-         }
+         my $asb = display_left_product_in_basis($a, $bImage, $bImageBasis, $newBasisHash, $R);
+         my $sab = display_right_product_in_basis($aImage, $b, $aImageBasis, $newBasisHash, $R);
+         my $image = (new Int($a->[0]))%2 == 0 ? $sab + $asb : $sab - $asb;
+         push @result, $image;
       }
+      $this->KOSZUL_IMAGE = new Matrix<Polynomial>(@result);
    }
 
 }
 
+sub display_right_product_in_basis{
+   my($vec, $b, $vecBasis, $newBasisHash, $R) = @_;
+   my @filling = map((new Polynomial($R)), (0..(scalar(keys %$newBasisHash) - 1)));
+   my $result = new Vector<Polynomial>(@filling);
+   for(my $i = 0; $i<$vec->dim; $i++){
+      if($vec->[$i] != 0){
+         my ($sign, $basisElement) = product_and_sign_of_mon_with_mon($vecBasis->[$i], $b);
+         my $index = $newBasisHash->{$basisElement};
+         $result->[$index] = $sign*($vec->[$i]);
+      }
+   }
+   return $result;
+}
+
 sub display_left_product_in_basis{
-   my($a, $vec, $vecBasis, $newBasisHash) = @_;
+   my($a, $vec, $vecBasis, $newBasisHash, $R) = @_;
+   my @filling = map((new Polynomial($R)), (0..(scalar(keys %$newBasisHash) - 1)));
+   my $result = new Vector<Polynomial>(@filling);
+   for(my $i = 0; $i<$vec->dim; $i++){
+      if($vec->[$i] != 0){
+         my ($sign, $basisElement) = product_and_sign_of_var_with_mon($a, $vecBasis->[$i]);
+         my $index = $newBasisHash->{$basisElement};
+         $result->[$index] = $sign*($vec->[$i]);
+      }
+   }
+   return $result;
 }
 
 
@@ -333,7 +361,7 @@ user_function initialize_dgla(Cone){
    
    my $y1mat = new Matrix(map($_->[0], @y1s));
 
-   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0);
+   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0, BASERING=>$R);
 
 }
 
