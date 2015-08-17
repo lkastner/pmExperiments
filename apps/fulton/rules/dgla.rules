@@ -35,20 +35,50 @@ object DGLA_singular_object {
 
    property REDUCED_KERNEL : String;
 
-   rule REDUCED_KERNEL : KERNEL, KOSZUL_IMAGE {
+   rule REDUCED_KERNEL : KERNEL, KOSZUL_IMAGE, RING {
       # TODO
       # Compute standard basis of koszul image.
       # Reduce kernel module image.
+      my $ring = $this->RING;
+      my $kernel = $this->KERNEL;
+      my $koszul = $this->KOSZUL_IMAGE;
+      my $name = get_random_string();
+      my $singular_cmd = "setring(".$ring.");\n";
+      $singular_cmd .= "module ".$koszul."module = std(module(".$koszul."));\n";
+      $singular_cmd .= "module ".$name."module = reduce(module(".$kernel."),".$koszul."module);\n";
+      $singular_cmd .= $name."module = simplify(".$name."module, 6);\n";
+      $singular_cmd .= "matrix ".$name." = matrix(".$name."module);\n";
+      singular_eval($singular_cmd);
+      $this->REDUCED_KERNEL = $name;
    }
    
    # TODO
    # Retrieve the singular matrices as polymake matrices of polynomials.
+   #
+   rule KERNEL : MORPHISM, RING {
+      my $ring = $this->RING;
+      my $morphism = $this->MORPHISM;
+      my $name = get_random_string();
+      my $singular_cmd = "setring(".$ring.");\n";
+      $singular_cmd .= "matrix ".$name." = ";
+      $singular_cmd .= "matrix(syz(module(".$morphism.")));\n";
+      singular_eval($singular_cmd);
+      $this->KERNEL = $name;
+   }
    
 }
 
 
 object DGLA_step{
    
+###############################################################################
+###############################################################################
+###
+###  Properties
+###
+###############################################################################
+###############################################################################
+
    property PREVIOUS_STEP : DGLA_step;
 
    property Y_VARS : Matrix;
@@ -56,6 +86,48 @@ object DGLA_step{
    property BASIS0 : Vector<Matrix>;
    
    property BASIS0_INDEX : Map<Matrix, Int>;
+
+   property DEG0 : Int;
+
+   property DEG1 : Int;
+
+   property KOSZUL_BASIS : Vector<Matrix>;
+   
+   property KOSZUL_IMAGE : Matrix<Polynomial>;
+
+   property BASIS1 : Vector<Matrix>;
+
+   property BASIS1_INDEX : Map<Matrix, Int>;
+
+   property MAP : Matrix<Polynomial>;
+   
+   property KERNEL : Matrix<Polynomial>;
+
+   property REDUCED_KERNEL : Matrix<Polynomial>;
+   
+   property BASERING : Ring;
+   
+   property SINGULAR_REFS : DGLA_singular_object;
+
+###############################################################################
+###############################################################################
+###
+###  Rules
+###
+###############################################################################
+###############################################################################
+
+
+   rule KERNEL : SINGULAR_REFS.KERNEL, BASERING {
+      my $name = $this->SINGULAR_REFS->KERNEL;
+      my $ring = $this->BASERING;
+      my $result = get_singular_matrix($name, $ring);
+      $this->KERNEL = transpose($result);
+   }
+
+   rule DEG1 : DEG0 {
+      $this->DEG1 = $this->DEG0 + 1;
+   }
 
    rule BASIS0_INDEX : BASIS0 {
       my $basis0 = $this->BASIS0;
@@ -66,22 +138,6 @@ object DGLA_step{
       $this->BASIS0_INDEX = $result;
    }
 
-   property DEG0 : Int;
-
-   property DEG1 : Int;
-
-   rule DEG1 : DEG0 {
-      $this->DEG1 = $this->DEG0 + 1;
-   }
-
-   property KOSZUL_BASIS : Vector<Matrix>;
-   
-   property KOSZUL_IMAGE : Matrix<Polynomial>;
-
-   property BASIS1 : Vector<Matrix>;
-
-   property BASIS1_INDEX : Map<Matrix, Int>;
-
    rule BASIS1_INDEX : BASIS1 {
       my $basis1 = $this->BASIS1;
       my $result = new Map<Matrix, Int>;
@@ -91,23 +147,44 @@ object DGLA_step{
       $this->BASIS1_INDEX = $result;
    }
 
-   property MAP : Matrix<Polynomial>;
-   
-   property KERNEL : Matrix<Polynomial>;
+   rule REDUCED_KERNEL : SINGULAR_REFS.REDUCED_KERNEL, BASERING {
+      my $name = $this->SINGULAR_REFS->REDUCED_KERNEL;
+      my $ring = $this->BASERING;
+      my $result = get_singular_matrix($name, $ring);
+      $this->REDUCED_KERNEL = transpose($result);
+   }
 
-   property REDUCED_KERNEL : Matrix<Polynomial>;
-
-   property BASERING : Ring;
-   
-   property SINGULAR_REFS : DGLA_singular_object;
+   rule PREVIOUS_STEP.SINGULAR_REFS.KOSZUL_IMAGE : KOSZUL_IMAGE, PREVIOUS_STEP.SINGULAR_REFS.RING {
+      my $ring = $this->PREVIOUS_STEP->SINGULAR_REFS->RING;
+      my $koszul = $this->KOSZUL_IMAGE;
+      my $name = get_random_string();
+      my $singular_cmd = "setring(".$ring.");\n";
+      $singular_cmd .= build_singular_matrix($koszul, $name);
+      $singular_cmd .= $name." = transpose(".$name.");\n";
+      singular_eval($singular_cmd);
+      $this->PREVIOUS_STEP->SINGULAR_REFS->KOSZUL_IMAGE = $name;
+   }
 
    rule SINGULAR_REFS.RING : BASERING {
       # Write polymake ring to singular.
+      my $ring = $this->BASERING;
+      my $name = get_random_string();
+      my $singular_def = "ring ".$name." = 0,(";
+      $singular_def .= join(",",$ring->variables);
+      $singular_def .= "),dp;";
+      singular_eval($singular_def);
+      $this->SINGULAR_REFS->RING = $name;
    }
 
    rule SINGULAR_REFS.MORPHISM : SINGULAR_REFS.RING, MAP {
-      # 1. Set polynomial ring.
-      # 2. Write matrix to singular.
+      my $ring = $this->SINGULAR_REFS->RING;
+      my $map = $this->MAP;
+      my $name = get_random_string();
+      my $singular_def = "setring ".$ring.";\n";
+      $singular_def .= build_singular_matrix($map, $name);
+      $singular_def .= $name." = transpose(".$name.");";
+      singular_eval($singular_def);
+      $this->SINGULAR_REFS->MORPHISM = $name;
    }
 
    rule BASERING : PREVIOUS_STEP.BASERING {
@@ -123,13 +200,31 @@ object DGLA_step{
       $this->DEG0 = $this->PREVIOUS_STEP->DEG1;
    }
 
-   rule BASIS1 : KOSZUL_BASIS, DEG1, REDUCED_KERNEL {
-      # TODO
-      # Append new variables for every kernel element.
+   rule Y_VARS : DEG1, PREVIOUS_STEP.REDUCED_KERNEL, PREVIOUS_STEP.Y_VARS {
+      my $deg = $this->DEG1;
+      my @given = @{$this->PREVIOUS_STEP->Y_VARS};
+      my @toappend = ();
+      for(my $i = 0; $i<$this->PREVIOUS_STEP->REDUCED_KERNEL->rows; $i++){
+         push @toappend, new Vector([$deg, $i]);
+      }
+      $this->Y_VARS = new Matrix([@given, @toappend]);
+
    }
 
-   rule MAP : KOSZUL_IMAGE, REDUCED_KERNEL {
-      $this->MAP = new Matrix($this->KOSZUL_IMAGE / $this->REDUCED_KERNEL);
+   rule BASIS1 : KOSZUL_BASIS, DEG1, PREVIOUS_STEP.REDUCED_KERNEL {
+      # TODO
+      # Append new variables for every kernel element.
+      my $deg = $this->DEG1;
+      my @given = @{$this->KOSZUL_BASIS};
+      my @toappend = ();
+      for(my $i = 0; $i<$this->PREVIOUS_STEP->REDUCED_KERNEL->rows; $i++){
+         push @toappend, new Matrix([[$deg, $i, 1]]);
+      }
+      $this->BASIS1 = new Vector<Matrix>([@given, @toappend]);
+   }
+
+   rule MAP : KOSZUL_IMAGE, PREVIOUS_STEP.REDUCED_KERNEL {
+      $this->MAP = new Matrix<Polynomial>($this->KOSZUL_IMAGE / $this->PREVIOUS_STEP->REDUCED_KERNEL);
    }
 
    rule KOSZUL_BASIS : PREVIOUS_STEP.Y_VARS, DEG1 {
@@ -162,9 +257,9 @@ object DGLA_step{
       my $newBasisHash = $this->BASIS0_INDEX;
       my @result;
       foreach my $element (@$kb){
-         print "Current monomial:\n",$element,"\n";
+         # print "Current monomial:\n",$element,"\n";
          my ($a, $b) = split_monomial($element);
-         print "Split into\n",$a,"\nand\n",$b,"\n";
+         # print "Split into\n",$a,"\nand\n",$b,"\n";
          my ($aImage, $aImageBasis) = get_image_of_monomial(new Matrix([$a]), $prevDGLA);
          my ($bImage, $bImageBasis) = get_image_of_monomial($b, $prevDGLA);
          my $asb = display_left_product_in_basis($a, $bImage, $bImageBasis, $newBasisHash, $R);
@@ -175,6 +270,64 @@ object DGLA_step{
       $this->KOSZUL_IMAGE = new Matrix<Polynomial>(@result);
    }
 
+###############################################################################
+###############################################################################
+###
+###  User methods
+###
+###############################################################################
+###############################################################################
+   
+   user_method print_s_nicely() {
+      my($dglas) = @_;
+      my $basis1 = $dglas->BASIS1;
+      my $basis0 = $dglas->BASIS0;
+      my $morphism = $dglas->MAP;
+      my $zero = new Polynomial($dglas->BASERING);
+      for(my $i=0; $i<$basis1->dim; $i++){
+         my $ymon = $basis1->[$i];
+         my $ymonString = monomial_to_string($ymon);
+         my $image = vector_to_string_in_basis($morphism->[$i], $basis0, $zero);
+         print "s(".$ymonString.") = ".$image."\n";
+      }
+   }
+
+}
+
+
+###############################################################################
+###############################################################################
+###
+###  Helper methods
+###
+###############################################################################
+###############################################################################
+
+sub vector_to_string_in_basis{
+   my($vec, $basis, $zero) = @_;
+   my @result = ();
+   for(my $i = 0; $i<$vec->dim; $i++){
+      $vec->[$i] != $zero or next;
+      my $coef = "(".$vec->[$i].")";
+      my $gen = monomial_to_string($basis->[$i]);
+      my $term = length($gen) > 0 ? $coef."*".$gen : $coef;
+      push @result, $term;
+   }
+   return join(" + ", @result);
+}
+
+sub monomial_to_string{
+   my($monomial) = @_;
+   my @result = ();
+   foreach my $varpow (@$monomial){
+      my $pow = $varpow->[2];
+      my $deg = $varpow->[0];
+      my $index = $varpow->[1];
+      my $term = "y_{".$index."}^{(".$deg.")}";
+      $term = $pow > 1 ? "(".$term.")" : $term;
+      push @result, $term;
+   }
+   return join("*", @result);
 }
 
 sub display_right_product_in_basis{
@@ -265,7 +418,7 @@ sub find_switchSign{
       my $pow = $v->[2];
       $switchSign += $pow*($deg*$vardeg);
    }
-   return $switchSign%2 == 0 ? 1 : -1;
+   return (new Int($switchSign))%2 == 0 ? 1 : -1;
 }
 
 
@@ -350,14 +503,26 @@ sub get_singular_matrix{
    singular_eval("int cols = ncols(".$name.");");
    my $rows = singular_get_var("rows");
    my $cols = singular_get_var("cols");
-   my $result = new Matrix<Polynomial>($rows, $cols);
+   # print "R: ",$rows," C: ",$cols,"\n";
+   my @result = ();
    for(my $i = 0; $i<$rows; $i++){
-      for(my $j = 0; $j<$rows; $j++){
+      my @vec = ();
+      for(my $j = 0; $j<$cols; $j++){
          singular_eval("poly polymake_temp = ".$name."[".($i+1).",".($j+1)."];");
          my $entry = get_singular_poly("polymake_temp", $ring);
-         $result->($i, $j) = $entry;
+         push @vec, $entry;
       }
+      push @result, new Vector<Polynomial>([@vec]);
    }
+   return new Matrix<Polynomial>([@result]);
+}
+
+sub build_singular_matrix{
+   my($mat, $name) = @_;
+   my $rows = $mat->rows;
+   my $cols = $mat->cols;
+   my $entries = join(",\n", map(join(",", @$_), @$mat));
+   my $result = "matrix ".$name."[".$rows."][".$cols."] = ".$entries.";\n";
    return $result;
 }
 

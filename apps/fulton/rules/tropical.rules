@@ -592,7 +592,7 @@ sub get_singular_poly{
    my $numVars = $ring->n_vars;
    my $exponents = new Matrix<Integer>(0, $numVars);
    my $coefficients = new Vector<Rational>();
-   print "NumTerms: ";
+   # print "NumTerms: ";
    while($numTerms > 0){
       singular_eval("intvec exponent = leadexp(".$name.");");
       singular_eval("int num = int(numerator(leadcoef(".$name.")));");
@@ -604,9 +604,9 @@ sub get_singular_poly{
       singular_eval($name." = ".$name."-lead(".$name.");");
       singular_eval("int n = size(".$name.")");
       $numTerms = singular_get_var("n");
-      print $numTerms,",";
+      # print $numTerms,",";
    }
-   print "\n";
+   # print "\n";
    return new Polynomial((new Matrix<Int>($exponents)),$coefficients, $ring);
 }
 
