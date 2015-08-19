@@ -83,6 +83,10 @@ object DGLA_step{
 
    property Y_VARS : Matrix;
 
+   property X_DEGS : Matrix;
+
+   property Y_DEGS : Map<Vector, Vector>;
+
    property BASIS0 : Vector<Matrix>;
    
    property BASIS0_INDEX : Map<Matrix, Int>;
@@ -117,6 +121,44 @@ object DGLA_step{
 ###############################################################################
 ###############################################################################
 
+   rule X_DEGS : PREVIOUS_STEP.X_DEGS {
+      print "In here xdeg.\n";
+      $this->X_DEGS = new Matrix($this->PREVIOUS_STEP->X_DEGS);
+   }
+   precondition : DEG0 {
+      $this->DEG0 > 0;
+   }
+
+   rule Y_DEGS : PREVIOUS_STEP.Y_DEGS, X_DEGS, MAP, Y_VARS {
+      print "In here ydeg.\n";
+      my $previousYDegs = $this->PREVIOUS_STEP->Y_DEGS;
+      my %previousYDegsHash = %$previousYDegs;
+      foreach my $y (@{$this->Y_VARS}){
+         print exists $previousYDegsHash{$y},"\n";
+      }
+   }
+   precondition : DEG0 {
+      $this->DEG0 > 0;
+   }
+   
+   rule Y_DEGS : X_DEGS, MAP, Y_VARS {
+      my $xdeg = $this->X_DEGS;
+      print $xdeg;
+      my $map = $this->MAP;
+      print $map;
+      my $yvars = $this->Y_VARS;
+      my $result = new Map<Vector, Vector>();
+      for(my $i = 0; $i<$yvars->rows; $i++){
+         my $y = new Vector($yvars->[$i]);
+         my $image = $map->($i,0);
+         my $deg = degree_of_xpoly($image, $xdeg);
+         $result->{$y} = $deg;
+      }
+      $this->Y_DEGS = $result;
+   }
+   precondition : DEG0 {
+      $this->DEG0 == 0;
+   }
 
    rule KERNEL : SINGULAR_REFS.KERNEL, BASERING {
       my $name = $this->SINGULAR_REFS->KERNEL;
@@ -302,6 +344,13 @@ object DGLA_step{
 ###
 ###############################################################################
 ###############################################################################
+
+sub degree_of_xpoly{
+   my($f, $degs) = @_;
+   my $exp = $f->monomials_as_matrix();
+   my $first = $exp->[0];
+   return new Vector($first * $degs);
+}
 
 sub vector_to_string_in_basis{
    my($vec, $basis, $zero) = @_;
@@ -544,7 +593,7 @@ user_function initialize_dgla(Cone){
    
    my $y1mat = new Matrix(map($_->[0], @y1s));
 
-   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0, BASERING=>$R);
+   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0, BASERING=>$R, X_DEGS=>$c->HILBERT_BASIS);
 
 }
 
