@@ -43,7 +43,7 @@ object NormalToricVariety {
       print "Check:\n",transpose($H)*transpose($Dgen);
 
 
-      my $toric = $dual_cone->TORIC_IDEAL;
+      my $toric = $dual_cone->TORIC_IDEAL->BINOMIAL_GENERATORS;
       # print "Toric ideal:\n",$toric;
 
       # Now all combinatorial information has been collected.

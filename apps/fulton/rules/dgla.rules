@@ -122,20 +122,34 @@ object DGLA_step{
 ###############################################################################
 
    rule X_DEGS : PREVIOUS_STEP.X_DEGS {
-      print "In here xdeg.\n";
       $this->X_DEGS = new Matrix($this->PREVIOUS_STEP->X_DEGS);
    }
    precondition : DEG0 {
       $this->DEG0 > 0;
    }
 
-   rule Y_DEGS : PREVIOUS_STEP.Y_DEGS, X_DEGS, MAP, Y_VARS {
-      print "In here ydeg.\n";
+   rule Y_DEGS : PREVIOUS_STEP.Y_DEGS, X_DEGS, MAP, Y_VARS, BASIS1_INDEX, BASIS0 {
       my $previousYDegs = $this->PREVIOUS_STEP->Y_DEGS;
+      my $basis1Index = $this->BASIS1_INDEX;
+      my $basis0 = $this->BASIS0;
+      my $xdegs = $this->X_DEGS;
+      my $map = $this->MAP;
       my %previousYDegsHash = %$previousYDegs;
+      my $result = new Map<Vector, Vector>();
       foreach my $y (@{$this->Y_VARS}){
-         print exists $previousYDegsHash{$y},"\n";
+         if(exists $previousYDegs->{$y}){
+            # print $y, " Exists!\n";
+            $result->{$y} = new Vector($previousYDegs->{$y});
+         } else {
+            # print $y, " Doesn't exist!\n";
+            my $ypow1 = new Matrix([[@$y, 1]]);
+            my $index = $basis1Index->{$ypow1};
+            my $image = $map->[$index];
+            $result->{$y} = degree_of_yvector($image, $xdegs, $previousYDegs, $basis0);
+         }
+
       }
+      $this->Y_DEGS = $result;
    }
    precondition : DEG0 {
       $this->DEG0 > 0;
@@ -143,9 +157,9 @@ object DGLA_step{
    
    rule Y_DEGS : X_DEGS, MAP, Y_VARS {
       my $xdeg = $this->X_DEGS;
-      print $xdeg;
+      # print $xdeg;
       my $map = $this->MAP;
-      print $map;
+      # print $map;
       my $yvars = $this->Y_VARS;
       my $result = new Map<Vector, Vector>();
       for(my $i = 0; $i<$yvars->rows; $i++){
@@ -344,6 +358,26 @@ object DGLA_step{
 ###
 ###############################################################################
 ###############################################################################
+
+sub degree_of_yvector{
+   my($vec, $xdegs, $ydegs, $basis) = @_;
+   my $i = 0;
+   while($vec->[$i] == 0){ $i++;}
+   return degree_of_xpoly($vec->[$i], $xdegs) + degree_of_ymon($basis->[$i], $ydegs);
+}
+
+sub degree_of_ymon{
+   my($mon, $ydegs) = @_;
+   my $init = $mon->[0];
+   $init = new Vector([$init->[0], $init->[1]]);
+   my $result = new Vector($ydegs->{$init}->dim);
+   foreach my $varpow (@$mon){
+      my $var = new Vector([$varpow->[0], $varpow->[1]]);
+      my $pow = $varpow->[2];
+      $result = new Vector($result + ($pow*$ydegs->{$var}));
+   }
+   return $result;
+}
 
 sub degree_of_xpoly{
    my($f, $degs) = @_;
@@ -578,7 +612,7 @@ sub build_singular_matrix{
 
 user_function initialize_dgla(Cone){
    my($c) = @_;
-   my $ideal = $c->TORIC_IDEAL;
+   my $ideal = $c->TORIC_IDEAL->BINOMIAL_GENERATORS;
    print $ideal,"\n";
    my @vars = map("x_".$_, 0..($ideal->cols - 1));
    my $R = new Ring(@vars);

@@ -49,7 +49,7 @@ user_function testing(Cone, Vector, Vector){
    $gen1 = $gen1->minor(All, ~[0]);
    $gen2 = $gen2->minor(All, ~[0]);
 
-   my $toric = $c->TORIC_IDEAL;
+   my $toric = $c->TORIC_IDEAL->BINOMIAL_GENERATORS;
 
 
 }
