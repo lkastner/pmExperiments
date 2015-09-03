@@ -1,0 +1,88 @@
+object CyclicQuotient {
+
+   user_method resolution_quiver_tikz{
+      my($cqs) = @_;
+      my $n = new Int($cqs->N);
+      my $q = $cqs->Q;
+      my $edges = $cqs->RESOLUTION->WEIGHTED_EDGES;
+      # print "N: ",$n,", Q:  ",$q,"\n";
+      my $nodesTikz = n_points_on_circle($n);
+      my $edgesTikz = print_edges($edges);
+      my $result = surround_tikz($nodesTikz.$edgesTikz);
+      $result .= print_incidence_matrix($cqs->RESOLUTION->INCIDENCE_MATRIX);
+      return $result;
+   }
+
+}
+
+sub surround_tikz{
+   my($content) = @_;
+   my $result = "\\[\n";
+   $result .= "\\resizebox{0.45\\textwidth}{!}{\n";
+   $result .= "\\begin{tikzpicture}\n";
+   $result .= "\\def \\radius {10pt};\n";
+   $result .= $content;
+   $result .= "\\end{tikzpicture}\n}\n\\]\n";
+   return $result;
+}
+
+sub print_edges{
+   my($edges) = @_;
+   my $result;
+   foreach my $key (keys %$edges){
+      my $source = -$key->[0]->[0];
+      my $target = -$key->[1]->[0];
+      my $weights = $edges->{$key};
+      foreach my $weight (@$weights){
+         $result .= generate_edge($source, $target, $weight);
+      }
+   }
+   return $result;
+}
+
+sub generate_edge{
+   my($source, $target, $weight) = @_;
+   my $result = "\\path[->] (E".$source.") edge";
+   if($source == $target){
+      my $out = int(rand(360));
+      my $in = $out+50;
+      $result .= "[out=".$out.", in=".$in.", loop, distance=2cm]";
+   } else {
+      my $bend = int(rand(50));
+      $result .= "[bend right = ".$bend."]";
+   }
+   $result .= " node[above, font=\\tiny]";
+   $result .= " {\$[";
+   $result .= join(", ",@$weight);
+   $result .= "]\$} ";
+   $result .= "(E".$target.");\n";
+   return $result;
+}
+
+sub n_points_on_circle{
+   my($n) = @_;
+   my $result = "";
+   use Math::Trig;
+   for(my $i=0; $i<$n; $i++){
+      my $val = (2*$i*pi)/$n;
+      my $x = sqrt(2*$n) * cos($val);
+      my $y = sqrt(2*$n) * sin($val);
+      $x = sprintf "%.4f", $x;
+      $y = sprintf "%.4f", $y;
+      $result .= "\\node\[draw, circle\] \(E".$i."\) at \(".$x.",".$y."\) \{\$E\^{".$i."}\$\};\n";
+   }
+   return $result;
+}
+
+sub print_incidence_matrix{
+   my($mat) = @_;
+   my $n = $mat->cols;
+   my $cs = join("", map("c",0..($n-1)));
+   my $result = "\\[\n";
+   $result .= "\\begin{array}{$cs}\n";
+   $result .= join("\\\\\n", map(join(" & ", @$_), @$mat));
+   $result .= "\n";
+   $result .= "\\end{array}\n";
+   $result .= "\\]\n";
+   return $result;
+}

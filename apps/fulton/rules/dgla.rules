@@ -611,15 +611,13 @@ sub build_singular_matrix{
 
 
 user_function initialize_dgla(Cone){
-   my($c) = @_;
-   my $ideal = $c->TORIC_IDEAL->BINOMIAL_GENERATORS;
-   print $ideal,"\n";
-   my @vars = map("x_".$_, 0..($ideal->cols - 1));
-   my $R = new Ring(@vars);
-   my @polys = map(vector_to_binomial_string($_, @vars), @$ideal);
-   @polys = map((new Polynomial($R, $_)), @polys);
+   my($C) = @_;
+   my $n = $C->HILBERT_BASIS->rows;
+   my @vars = map("x_".$_, 0..($n - 1));
+   my $id = new BinomialIdeal(RING=>new Ring(\@vars));
+   my $c = new Cone(HILBERT_BASIS_GENERATORS=>$C->HILBERT_BASIS_GENERATORS, RAYS=>$C->RAYS, TORIC_IDEAL=>$id);
 
-   my $Map = new Matrix<Polynomial>([[@polys]]);
+   my $Map = new Matrix<Polynomial>([[@{$c->TORIC_IDEAL->GENERATORS}]]);
    my $basis0 = new Vector<Matrix>([zero_matrix(0,3)]);
    my @y1s = map((new Matrix([[1,$_]])), (0..($Map->cols - 1)));
    my @y1sWPow = map(($_ | ones_vector(1)), @y1s);
@@ -627,7 +625,7 @@ user_function initialize_dgla(Cone){
    
    my $y1mat = new Matrix(map($_->[0], @y1s));
 
-   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0, BASERING=>$R, X_DEGS=>$c->HILBERT_BASIS);
+   return new DGLA_step(BASIS0=>$basis0, MAP=>transpose($Map), BASIS1=>$basis1, Y_VARS=>$y1mat, DEG0=>0, BASERING=>$c->TORIC_IDEAL->RING, X_DEGS=>$c->HILBERT_BASIS);
 
 }
 
