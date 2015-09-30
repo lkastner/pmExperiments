@@ -12,12 +12,56 @@ user_function cqs_to_hb( $ ){
    return @result;
 }
 
-user_function compute_module_generators( $ , $ , $ ){
+user_function compute_ext_degrees( $ , $ , $ ){
    my($i, $j, $cqs) = @_;
    # Canonical!
    my $dcf = $cqs->DUAL_CONTINUED_FRACTION;
    my $hb = new Matrix(cqs_to_hb($cqs));
-   return recursion($i, $j, $dcf, $hb);
+   my ($canonical, $cshift) = get_canonical($hb);
+   print "Canonical: $canonical, $cshift.\n";
+   my $cj = $j + $canonical;
+   my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
+   print "New: $newi, $newj, $shift.\n";
+   my $result = recursion($newi, $newj, $dcf, $hb);
+   return new Matrix(map($_ + $cshift - $shift, @$result));
+}
+
+sub get_canonical{
+   my($hb) = @_;
+   my $last = new Vector($hb->[$hb->rows - 1]);
+   my $secondlast = new Vector($hb->[$hb->rows - 2]);
+   my $n = $last->[0];
+   my $q = $last->[1];
+   my $gendiff = $secondlast->[0] - 1;
+   my $index = $n - $gendiff;
+   my $shift = new Vector(1-$index,($q+1-$index*$q)/$n);
+   return ($index, $shift);
+}
+
+sub adjust_entries{
+   my($i, $j, $hb) = @_;
+   my $last = new Vector($hb->[$hb->rows - 1]);
+   my $n = $last->[0];
+   my $q = $last->[1];
+   my $shift = new Vector(0,0);
+   my ($newi, $ishift) = adjust_entry($i, $n, $last);
+   my ($newj, $jshift) = adjust_entry($j, $n, $last);
+   return ($newi, $newj, $ishift + $jshift);
+}
+
+sub adjust_entry{
+   my($i, $n, $last) = @_;
+   my $shift = new Vector(0,0);
+   while($i < 1){
+      $i += $n;
+      $shift -= $last;
+   }
+   while($i >= $n){
+      print "Going in. $i, $n.\n";
+      $i -= $n;
+      $shift += $last;
+   }
+   return ($i, $shift);
 }
 
 sub recursion{
