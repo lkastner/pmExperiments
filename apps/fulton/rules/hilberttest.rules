@@ -1,0 +1,67 @@
+user_function cqs_to_hb( $ ){
+   my($cqs) = @_;
+   my $b1 = new Vector(0,1);
+   my $b2 = new Vector(1,1);
+   my @result = ($b1, $b2);
+   foreach my $entry (@{$cqs->DUAL_CONTINUED_FRACTION}){
+       my $b3 = new Vector(($entry * $b2) - $b1);
+       push @result, $b3;
+       $b1 = $b2;
+       $b2 = $b3;
+   }
+   return @result;
+}
+
+user_function compute_module_generators( $ , $ , $ ){
+   my($i, $j, $cqs) = @_;
+   # Canonical!
+   my $dcf = $cqs->DUAL_CONTINUED_FRACTION;
+   my $hb = new Matrix(cqs_to_hb($cqs));
+   return recursion($i, $j, $dcf, $hb);
+}
+
+sub recursion{
+   my($i, $j, $dcf, $hb) = @_;
+   print "Input data: i: $i, j: $j,\nDCF: $dcf,\nHB: $hb.\n-------\n";
+   if($dcf->[$dcf->dim - 1] > 2){
+      return gt2case($i, $j, $dcf, $hb);
+   } elsif ($dcf->[$dcf->dim - 1] == 2){
+      return eq2case($i, $j, $dcf, $hb);
+   } else {
+      die "Input error dcf: $dcf";
+   }
+}
+
+sub gt2case{
+   my($i, $j, $dcf, $hb) = @_;
+   my $last = new Vector($hb->[$hb->rows - 1]);
+   my $secondlast = new Vector($hb->[$hb->rows - 2]);
+   my $n = $last->[0];
+   my $q = $last->[1];
+   my $newlast = $last - $secondlast;
+   my $ntilda = $newlast->[0];
+   my $qtilda = $newlast->[1];
+   my $diff = $n - $ntilda;
+   if(($diff < $i) and ($diff < j)){
+      my $newi = $i-$diff;
+      my $newj = $j-$diff;
+      my $newdcf = new Vector($dcf);
+      $dcf->[$dcf->dim -1]--;
+      my $newhb = new Matrix($hb->minor(~[$hb->rows -1], All) | $newlast);
+      my $result = recursion($newi, $newj, $newdcf, $newhb);
+      if($i+$j <= $n){
+         return new Matrix($result | $last);
+      } else {
+         return new Matrix($result);
+      }
+   }
+
+}
+
+sub eq2case{
+   my($i, $j, $dcf, $hb) = @_;
+   my $last = new Vector($hb->[$hb->rows - 1]);
+   my $n = $last->[0];
+   my $q = $last->[1];
+
+}
