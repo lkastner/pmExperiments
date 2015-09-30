@@ -22,6 +22,9 @@ user_function compute_module_generators( $ , $ , $ ){
 
 sub recursion{
    my($i, $j, $dcf, $hb) = @_;
+   if($dcf->dim == 0){
+      return new Matrix(0,2);
+   }
    print "Input data: i: $i, j: $j,\nDCF: $dcf,\nHB: $hb.\n-------\n";
    if($dcf->[$dcf->dim - 1] > 2){
       return gt2case($i, $j, $dcf, $hb);
@@ -34,6 +37,7 @@ sub recursion{
 
 sub gt2case{
    my($i, $j, $dcf, $hb) = @_;
+   print "Entering >2 case.\n";
    my $last = new Vector($hb->[$hb->rows - 1]);
    my $secondlast = new Vector($hb->[$hb->rows - 2]);
    my $n = $last->[0];
@@ -42,26 +46,76 @@ sub gt2case{
    my $ntilda = $newlast->[0];
    my $qtilda = $newlast->[1];
    my $diff = $n - $ntilda;
-   if(($diff < $i) and ($diff < j)){
+   if(($diff < $i) and ($diff < $j)){
       my $newi = $i-$diff;
       my $newj = $j-$diff;
       my $newdcf = new Vector($dcf);
-      $dcf->[$dcf->dim -1]--;
-      my $newhb = new Matrix($hb->minor(~[$hb->rows -1], All) | $newlast);
+      $newdcf->[$dcf->dim -1]--;
+      my $newhb = new Matrix($hb->minor(~[$hb->rows -1], All) / $newlast);
       my $result = recursion($newi, $newj, $newdcf, $newhb);
+      print "Old result:\n",$result,"-----\n";
+      # print "Old result:\n",$result;
+      if($result->rows > 0){
+         $result = new Matrix(map($_ + 2*$secondlast, @$result));
+      }
       if($i+$j <= $n){
-         return new Matrix($result | $last);
+         return new Matrix($result / $last);
       } else {
          return new Matrix($result);
       }
+   } elsif ($i <= $diff){
+      my $newi = $i + $ntilda;
+      my $previous = recursion($newi, $j, $dcf, $hb);
+      my $result = new Matrix(map($_ + $secondlast, @$previous));
+      print "Old result:\n",$result,"DCF: $dcf\n-----\n";
+      if($j <= $n - $i){
+         return new Matrix($result / $last);
+      } else {
+         return new Matrix($result);
+      }
+   } else {
+      return recursion($j, $i, $dcf, $hb);
    }
 
 }
 
 sub eq2case{
    my($i, $j, $dcf, $hb) = @_;
+   print "Entering ==2 case. i: $i, j: $j, dcf: $dcf\n";
    my $last = new Vector($hb->[$hb->rows - 1]);
+   my $newlast = new Vector($hb->[$hb->rows - 2]);
    my $n = $last->[0];
    my $q = $last->[1];
+   my $ntilda = $newlast->[0];
+   my $qtilda = $newlast->[1];
+   if(($i <= $ntilda) and ($j <= $ntilda)){
+      print "Going into if part.\n";
+      my $newdcf = new Vector($dcf->slice([0..($dcf->dim -2)]));
+      my $newhb = new Matrix($hb->minor([0..($hb->rows -2)], All));
+      my $result = recursion($i, $j, $newdcf, $newhb);
+      print "Old result:\n",$result,"-----\n";
+      if($i+$j <= $n){
+         return new Matrix($result / $last);
+      } else {
+         return new Matrix($result);
+      }
+
+   } elsif ($ntilda < $i){
+      print "Going into else part.\n";
+      my $diff = $n - $ntilda;
+      my $fix = $last - $newlast;
+      my $newi = $i - $diff;
+      my $result = recursion($newi, $j, $dcf, $hb);
+      print "Old result:\n",$result,"-----\n";
+      print "n: $n, i: $i, j: $j.\n";
+      if($j > ($n - $i)){
+         $result = new Matrix(grep($_ != (new Vector($n, $q)), @$result));
+         print "Grepped:\n",$result,"-----\n";
+      }
+      return new Matrix(map($_ + $fix, @$result));
+   } else {
+      return recursion($j, $i, $dcf, $hb);
+   }
+
 
 }
