@@ -23,7 +23,8 @@ user_function compute_ext_degrees( $ , $ , $ ){
    my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
    print "New: $newi, $newj, $shift.\n";
    my $result = recursion($newi, $newj, $dcf, $hb);
-   return new Matrix(map($_ + $cshift - $shift, @$result));
+   # The first plus is verified.
+   return new Matrix(map($_ + $cshift + $shift, @$result));
 }
 
 sub get_canonical{
@@ -40,7 +41,7 @@ sub get_canonical{
 
 sub adjust_entries{
    my($i, $j, $hb) = @_;
-   my $last = new Vector($hb->[$hb->rows - 1]);
+   my $last = new Vector<Integer>($hb->[$hb->rows - 1]);
    my $n = $last->[0];
    my $q = $last->[1];
    my $shift = new Vector(0,0);
@@ -57,7 +58,6 @@ sub adjust_entry{
       $shift -= $last;
    }
    while($i >= $n){
-      print "Going in. $i, $n.\n";
       $i -= $n;
       $shift += $last;
    }
@@ -69,7 +69,7 @@ sub recursion{
    if($dcf->dim == 0){
       return new Matrix(0,2);
    }
-   print "Input data: i: $i, j: $j,\nDCF: $dcf,\nHB: $hb.\n-------\n";
+   # print "Input data: i: $i, j: $j,\nDCF: $dcf,\nHB: $hb.\n-------\n";
    if($dcf->[$dcf->dim - 1] > 2){
       return gt2case($i, $j, $dcf, $hb);
    } elsif ($dcf->[$dcf->dim - 1] == 2){
@@ -81,7 +81,7 @@ sub recursion{
 
 sub gt2case{
    my($i, $j, $dcf, $hb) = @_;
-   print "Entering >2 case.\n";
+   # print "Entering >2 case.\n";
    my $last = new Vector($hb->[$hb->rows - 1]);
    my $secondlast = new Vector($hb->[$hb->rows - 2]);
    my $n = $last->[0];
@@ -97,7 +97,7 @@ sub gt2case{
       $newdcf->[$dcf->dim -1]--;
       my $newhb = new Matrix($hb->minor(~[$hb->rows -1], All) / $newlast);
       my $result = recursion($newi, $newj, $newdcf, $newhb);
-      print "Old result:\n",$result,"-----\n";
+      # print "Old result:\n",$result,"-----\n";
       # print "Old result:\n",$result;
       if($result->rows > 0){
          $result = new Matrix(map($_ + 2*$secondlast, @$result));
@@ -111,7 +111,7 @@ sub gt2case{
       my $newi = $i + $ntilda;
       my $previous = recursion($newi, $j, $dcf, $hb);
       my $result = new Matrix(map($_ + $secondlast, @$previous));
-      print "Old result:\n",$result,"DCF: $dcf\n-----\n";
+      # print "Old result:\n",$result,"DCF: $dcf\n-----\n";
       if($j <= $n - $i){
          return new Matrix($result / $last);
       } else {
@@ -125,7 +125,7 @@ sub gt2case{
 
 sub eq2case{
    my($i, $j, $dcf, $hb) = @_;
-   print "Entering ==2 case. i: $i, j: $j, dcf: $dcf\n";
+   # print "Entering ==2 case. i: $i, j: $j, dcf: $dcf\n";
    my $last = new Vector($hb->[$hb->rows - 1]);
    my $newlast = new Vector($hb->[$hb->rows - 2]);
    my $n = $last->[0];
@@ -133,11 +133,11 @@ sub eq2case{
    my $ntilda = $newlast->[0];
    my $qtilda = $newlast->[1];
    if(($i <= $ntilda) and ($j <= $ntilda)){
-      print "Going into if part.\n";
+      # print "Going into if part.\n";
       my $newdcf = new Vector($dcf->slice([0..($dcf->dim -2)]));
       my $newhb = new Matrix($hb->minor([0..($hb->rows -2)], All));
       my $result = recursion($i, $j, $newdcf, $newhb);
-      print "Old result:\n",$result,"-----\n";
+      # print "Old result:\n",$result,"-----\n";
       if($i+$j <= $n){
          return new Matrix($result / $last);
       } else {
@@ -145,16 +145,16 @@ sub eq2case{
       }
 
    } elsif ($ntilda < $i){
-      print "Going into else part.\n";
+      # print "Going into else part.\n";
       my $diff = $n - $ntilda;
       my $fix = $last - $newlast;
       my $newi = $i - $diff;
       my $result = recursion($newi, $j, $dcf, $hb);
-      print "Old result:\n",$result,"-----\n";
-      print "n: $n, i: $i, j: $j.\n";
+      # print "Old result:\n",$result,"-----\n";
+      # print "n: $n, i: $i, j: $j.\n";
       if($j > ($n - $i)){
          $result = new Matrix(grep($_ != (new Vector($n, $q)), @$result));
-         print "Grepped:\n",$result,"-----\n";
+         # print "Grepped:\n",$result,"-----\n";
       }
       return new Matrix(map($_ + $fix, @$result));
    } else {
@@ -163,3 +163,201 @@ sub eq2case{
 
 
 }
+
+user_function find_orthogonal_lattice_basis( $ ){
+   my($vIn) = @_;
+   my $v = new Vector<Integer>(primitive($vIn));
+   my $d = $v->dim;
+   my $left = unit_matrix($d);
+   my $right = unit_matrix($d);
+   for(my $i=1; $i<$d; $i++){
+      if($v->[$i] == 0){
+         next;
+      }
+      my($l, $r, $g) = make_matrix_pair($v, $d, $i);
+      $left = $left * $l;
+      $right = $r * $right;
+      $v->[0] = $g;
+   }
+   return ($left, $right);
+}
+
+sub make_matrix_pair{
+   my($v, $d, $i) = @_;
+   my $gcd = ext_gcd($v->[0], $v->[$i]);
+   my $g = $gcd->[0];
+   if($g < 0) {print "Gcd less than zero! $g.\n";}
+   my $a = $gcd->[1];
+   my $b = $gcd->[2];
+   my $k1 = $gcd->[3];
+   my $k2 = $gcd->[4];
+   my $r = new Matrix<Integer>(unit_matrix($d));
+   my $l = new Matrix<Integer>(unit_matrix($d));
+   $r->(0,0) = $a;
+   $r->(0,$i) = $b;
+   $r->($i,0) = -$k2;
+   $r->($i,$i) = $k1;
+   $l->(0,0) = $k1;
+   $l->(0,$i) = -$b;
+   $l->($i,0) = $k2;
+   $l->($i,$i) = $a;
+   return ($l, $r, $g);
+}
+
+sub twodim_standard_form{
+   my($gen0In, $gen1In) = @_;
+   my $gen0 = new Vector<Integer>(primitive($gen0In));
+   my $gen1 = new Vector<Integer>(primitive($gen1In));
+   my ($l, $r) = make_matrix_pair($gen0, 2, 1);
+   my $switch = new Matrix<Integer>([[0,1],[1,0]]);
+   $l = $l * $switch;
+   $r = $switch * $r;
+   # gen0 is now sent to [0,1] under r;
+   my $imGen1 = $r * $gen1;
+   if($imGen1->[0] < 0){
+      my $mirror = new Matrix<Integer>([[-1,0],[0,1]]);
+      $l = $l * $mirror;
+      $r = $mirror * $r;
+      $imGen1 = $mirror * $imGen1;
+   }
+   # First entry of second gen is positive now. This is our n.
+   my $n = $imGen1->[0];
+   # Fix second entry of second gen.
+   while($imGen1->[1] < 0){
+      my $additor = new Matrix<Integer>([[1,0],[1,1]]);
+      my $inverse = new Matrix<Integer>([[1,0],[-1,1]]);
+      $l = $l * $inverse;
+      $r = $additor * $r;
+      $imGen1 = $additor * $imGen1;
+   }
+   while($imGen1->[1] >= $n){
+      my $subtractor = new Matrix<Integer>([[1,0],[-1,1]]);
+      my $inverse = new Matrix<Integer>([[1,0],[1,1]]);
+      $l = $l * $inverse;
+      $r = $subtractor * $r;
+      $imGen1 = $subtractor * $imGen1;
+   }
+   return ($l, $r);  
+}
+
+user_function threedim_case( $ ){
+   my($c) = @_;
+   $c->DIM == 3 or die "It says threedim, you moron.";
+   my $facet = new Vector<Integer>(primitive($c->FACETS->[0]));
+   print "Choosing pvector: $facet.\n";
+   my($back, $lastStep) = find_orthogonal_lattice_basis($facet);
+   print "Lattice basis found.\n";
+   my $projectionMatrix = transpose($back)->minor(~[0], All);
+   print "Projection matrix found.\n";
+   my @coneVectors = grep($facet * (new Vector<Integer>(primitive($_))) == 0, @{$c->RAYS});
+   my @lastVector = grep($facet * (new Vector<Integer>(primitive($_))) > 0, @{$c->RAYS});
+   print "Cone gens found.\n";
+   scalar(@coneVectors) == 2 or die "Wrong number of gens.";
+   scalar(@lastVector) == 1 or die "Wrong number of last vectors.";
+   my $ray = new Vector<Integer>(primitive($lastVector[0]));
+   @coneVectors = map((new Vector<Integer>(primitive($projectionMatrix * $_))), @coneVectors);
+   print "Projected cone gens:\n",join("\n", @coneVectors),"\n";
+   my ($fromStandard, $toStandard) = twodim_standard_form(@coneVectors);
+   @coneVectors = map($toStandard * $_, @coneVectors);
+   print "Cone generators:\n",join("\n", @coneVectors),"\n";
+   my $gen0 = $coneVectors[0];
+   my $gen1 = $coneVectors[1];
+   my $n = $gen1->[0];
+   my $q = $gen1->[1];
+   my $cqs = new CyclicQuotient(N=>$n, Q=>$q);
+   my $dcf = $cqs->DUAL_CONTINUED_FRACTION;
+   my $hb = new Matrix<Integer>(cqs_to_hb($cqs));
+   my @slices = splice_ray($ray, $facet);
+   my @gens = lift_gens_back($hb, 0, $fromStandard, $lastStep);
+   my $rationalProjectionMatrix = new Matrix<Rational>($projectionMatrix);
+   my $rationalFacet = new Vector<Rational>($facet);
+   my $rationalToStandard = new Matrix<Rational>($toStandard);
+   my ($canonical, $cshift) = get_canonical($hb);
+   foreach my $slice (@slices){
+      my $height = $facet * $slice;
+      my $transformedSlice = project_and_transform_slice($slice, $rationalProjectionMatrix, $rationalToStandard);
+      # print "Transformed: $transformedSlice.\n";
+      my $lowDim = compute_gens_for_slice($transformedSlice, $dcf, $hb, $n, $q, $canonical, $cshift);
+      # print "$height: Low dim gens:\n",$lowDim,"---------------\n";
+      my @result = lift_gens_back($lowDim, $height, $fromStandard, $lastStep);
+      @gens = (@gens, @result);
+   }
+   return (@gens, primitive($ray));
+
+}
+
+sub lift_gens_back{
+   my($gens, $height, $fromStandard, $lastStep) = @_;
+   # print "Gens are:\n$gens. fS is:\n$fromStandard";
+   my @result = map($fromStandard * $_, @$gens);
+   @result = map(new Vector([$height, @$_]), @result);
+   @result = map(transpose($lastStep) * $_, @result);
+   return @result;
+}
+
+sub compute_gens_for_slice{
+   my($vertexUnfixed, $dcf, $hb, $n, $q, $canonical, $cshift) = @_;
+   my $vertex = fix_vertex($vertexUnfixed, $n, $q);
+   # print "Fixed to $vertex.\n";
+   if(denominator($vertex->[1]) == 1){
+      return new Matrix([$vertex]);
+   }
+   my ($i, $indexShift) = find_index_from_vertex($vertex, $n, $q);
+   my @result = compute_generators_of_ei($i, $canonical, $cshift, $dcf, $hb);
+   @result = map($_ - $indexShift, @result);
+   return new Matrix([@result]);
+}
+
+sub compute_generators_of_ei{
+   my($i, $canonical, $cshift, $dcf, $hb) = @_;
+   my $cj = new Integer($canonical-1);
+   my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
+   my $last = $hb->[$hb->rows -1];
+   my $fix = $last - $cshift;
+   my $recursive = recursion($newi, $newj, $dcf, $hb);
+   # print "$newi $newj Recursion gives:\n$recursive.\nWill add $fix.\n";
+   my @result = (@$recursive, $fix);
+   return map($_ + $cshift + $shift, @result);
+}
+
+sub fix_vertex{
+   my($vertex, $n, $q) = @_;
+   my $xcoord = ceil($vertex->[0]);
+   my $yval = -$q*$vertex->[0] + $n*$vertex->[1];
+   my $yvalFixed = ceil($yval);
+   my $ycoord = ($yvalFixed + $q * $xcoord)/$n;
+   return new Vector<Rational>($xcoord, $ycoord);
+}
+
+sub find_index_from_vertex{
+   my($vertex, $n, $q) = @_;
+   my $ycoord = $vertex->[1];
+   my $numerator = numerator($ycoord);
+   my $gcd = ext_gcd($q, $n);
+   my $index = $numerator * $gcd->[1];
+   my $shift = (new Vector<Rational>($index, (new Rational($index*$q, $n)))) - $vertex;
+   return ($index, $shift);
+}
+
+
+sub project_and_transform_slice{
+   my($slice, $projection, $transform) = @_;
+   my $result = $transform * $projection *$slice;
+   return $result;
+}
+
+
+sub splice_ray{
+   my($ray, $facet) = @_;
+   my $numOfSlices = $ray * $facet;
+   my $rationalRay = new Vector<Rational>($ray);
+   print "There are $numOfSlices slices.\n";
+   my @result = ();
+   for(my $i = 1; $i<$numOfSlices; $i++){
+      my $slice = (new Rational($i,$numOfSlices)) * $rationalRay;
+      print "Slice at $slice.\n";
+      push @result, $slice;
+   }
+   return @result;
+}
+
