@@ -104,7 +104,7 @@ user_function represent_vectors_in_Hilbert_basis(Matrix, Matrix, Matrix){
 user_function toric_ideal_as_string(Cone, @ ){
    my($cone, @variables) = @_;
    $cone->POINTED or die "This method only works for a pointed cone.";
-   my $toric_ideal = $cone->TORIC_IDEAL;
+   my $toric_ideal = $cone->TORIC_IDEAL->BINOMIAL_GENERATORS;
    if($toric_ideal->rows == 0){
       return "0";
    } else {

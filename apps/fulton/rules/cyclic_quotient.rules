@@ -229,7 +229,8 @@ user_function ext1_mat_from_dcf(Vector<Integer>){
    my $A;
    if($upper_left->rows > $lower_right->rows){
       my $start = $upper_left->rows - $lower_right->rows;
-      $A = $upper_left->minor(All, [$start..($upper_left->rows-1)]);
+      my $modified_upper_left = new Matrix($upper_left - upper_triangular_ones_matrix($upper_left->rows));
+      $A = $modified_upper_left->minor(All, [$start..($upper_left->rows-1)]);
    } else {
       my $start = $lower_right->rows - $upper_left->rows;
       $A = $lower_right->minor([$start..($lower_right->rows-1)], All);

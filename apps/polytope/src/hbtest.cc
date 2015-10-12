@@ -36,10 +36,10 @@ Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
 Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 
 Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
-   cout << "Entering recursion." << dcf << " i: " << i << " j: " << j << endl;
+   // cout << "Entering recursion." << dcf << " i: " << i << " j: " << j << endl;
    int size = dcf.size();
    if(size==0){
-      cout << "Returning empty mat." << endl;
+      // cout << "Returning empty mat." << endl;
       return Matrix<Integer>(0,2);
    }
    if(dcf[size-1] == 2) return eq2_modgen(i, j, dcf, hb);
@@ -49,9 +49,10 @@ Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<In
 
 Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
    int size = dcf.size();
-   cout << "==2 case." << endl;
+   // cout << "==2 case. dcf: " << dcf << endl;
    Integer n, q, ntilda, qtilda, diff, newi;
    Vector<Integer> last(hb.row(size+1)), newlast(hb.row(size)), newdcf, fix;
+   // cout << "last: " << last << " newlast: " << newlast << endl;
    Matrix<Integer> newhb, result, fixmat;
    n = last[0];
    q = last[1];
@@ -62,7 +63,7 @@ Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
       if(size == 1){
          newdcf = Vector<Integer>(0);
       }
-      cout << "dcf: " << dcf << " newdcf: " << newdcf << endl;
+      // cout << "dcf: " << dcf << " newdcf: " << newdcf << endl;
       newhb = hb.minor(~scalar2set(size+1), All);
       result = module_generator_recursion(i, j, newdcf, newhb);
       if( i+j <= n) result /= last;
@@ -72,11 +73,14 @@ Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
       fix = last - newlast;
       newi = i - diff;
       result = module_generator_recursion(newi, j, dcf, hb);
-      if(i+j > n){
-         cout << "Previous result: " << endl << result << endl << "------------" << endl;
-         cout << "Last? row: " << result.row(result.rows() - 1) << endl;
-         cout << "n and q: " << n << " " << q << endl;
-         cout << "i and j: " << i << j << " dcf: " << dcf << endl;
+      if(newi+j <= n){
+         // cout << "Previous result: " << endl << result << endl << "------------" << endl;
+         // cout << "Last? row: " << result.row(result.rows() - 1) << endl;
+         // cout << "n and q: " << n << " " << q << endl;
+         // cout << "i and j: " << i << j << " dcf: " << dcf << endl;
+         if((result.rows() == 0) || (n != (result.row(result.rows() - 1))[0])){
+            cout << "Something went wrong!" << endl;
+         }
          result = result.minor(~scalar2set(result.rows() - 1), All);
       }
       fixmat = repeat_row(fix, result.rows());
@@ -115,8 +119,8 @@ Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
    } else if (i <= diff) {
       newi = i + ntilda;
       result = module_generator_recursion(newi, j, dcf, hb);
-      result += repeat_row(secondlast, result.rows());
-      if(i+j < n){
+      result -= repeat_row(newlast, result.rows());
+      if(i+j <= n){
          result /= last;
       }
       return result;
