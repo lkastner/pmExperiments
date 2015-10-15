@@ -12,20 +12,20 @@ user_function cqs_to_hb( $ ){
    return @result;
 }
 
-user_function compute_ext_degrees( $ , $ , $ ){
-   my($i, $j, $cqs) = @_;
-   # Canonical!
-   my $dcf = $cqs->DUAL_CONTINUED_FRACTION;
-   my $hb = new Matrix(cqs_to_hb($cqs));
-   my ($canonical, $cshift) = get_canonical($hb);
-   print "Canonical: $canonical, $cshift.\n";
-   my $cj = $j + $canonical;
-   my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
-   print "New: $newi, $newj, $shift.\n";
-   my $result = recursion($newi, $newj, $dcf, $hb);
-   # The first plus is verified.
-   return new Matrix(map($_ + $cshift + $shift, @$result));
-}
+# user_function compute_ext_degrees( $ , $ , $ ){
+#    my($i, $j, $cqs) = @_;
+#    # Canonical!
+#    my $dcf = $cqs->DUAL_CONTINUED_FRACTION;
+#    my $hb = new Matrix(cqs_to_hb($cqs));
+#    my ($canonical, $cshift) = get_canonical($hb);
+#    print "Canonical: $canonical, $cshift.\n";
+#    my $cj = $j + $canonical;
+#    my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
+#    print "New: $newi, $newj, $shift.\n";
+#    my $result = recursion($newi, $newj, $dcf, $hb);
+#    # The first plus is verified.
+#    return new Matrix(map($_ + $cshift + $shift, @$result));
+# }
 
 sub get_canonical{
    my($hb) = @_;

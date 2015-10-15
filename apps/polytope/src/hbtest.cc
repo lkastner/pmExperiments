@@ -31,9 +31,75 @@ namespace polymake {
 namespace polytope {
 namespace {
 
+
+/////////////////////////////////////////////////
+// Declaration
+//
 Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
+std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Integer>& last);
+std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjust_entries(Integer i, Integer j, const Matrix<Integer>& hb);
+std::pair<Integer, Vector<Integer> > get_canonical_divisor(const Matrix<Integer>& hb);
+Matrix<Integer> compute_cc_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb); 
+
+
+/////////////////////////////////////////////////
+// Implementation
+//
+
+
+Matrix<Integer> compute_cc_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
+   Integer newi, cj, newj;
+   Matrix<Integer> result;
+   std::pair<Integer, Vector<Integer> > canonical = get_canonical_divisor(hb);
+   cj = canonical.first + j;
+   std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjustment = adjust_entries(i, cj, hb);
+   newi = adjustment.first.first;
+   newj = adjustment.first.second;
+   result = module_generator_recursion(newi, newj, dcf, hb);
+   result += repeat_row(canonical.second + adjustment.second, result.rows());
+   return result;
+}
+
+
+
+std::pair<Integer, Vector<Integer> > get_canonical_divisor(const Matrix<Integer>& hb){
+   Vector<Integer> last(hb.row(hb.rows() -1)), secondlast(hb.row(hb.rows() -2)), shift(2);
+   Integer n(last[0]), q(last[1]), index;
+   index = n - secondlast[1] + 1;
+   shift[0] = 1-index;
+   shift[1] = (q+1-index*q)/n;
+   return std::pair<Integer, Vector<Integer> >(index, shift);
+}
+
+std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjust_entries(Integer i, Integer j, const Matrix<Integer>& hb){
+   Vector<Integer> last(hb.row(hb.rows()-1)), shift(2);
+   Integer n(last[0]), newi, newj;
+   std::pair<Integer, Vector<Integer> > adjust = adjust_entry(i, last);
+   newi = adjust.first;
+   shift += adjust.second;
+   adjust = adjust_entry(j, last);
+   newj = adjust.first;
+   shift += adjust.second;
+   return std::pair<std::pair<Integer, Integer>, Vector<Integer> >(std::pair<Integer, Integer>(newi, newj), shift);
+}
+
+
+std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Integer> last){
+   Vector<Integer> shift(2);
+   Integer result = i, n(last[0]);
+   while(i < 1){
+      i += n;
+      shift -= last;
+   }
+   while(i >= n){
+      i -= n;
+      shift += last;
+   }
+   return std::pair<Integer, Vector<Integer> >(result, shift);
+}
+
 
 Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
    // cout << "Entering recursion." << dcf << " i: " << i << " j: " << j << endl;
@@ -147,6 +213,8 @@ Matrix<Integer> continued_fraction_to_hilbert_basis(const Vector<Integer>& dcf){
 Function4perl(&continued_fraction_to_hilbert_basis, "continued_fraction_to_hilbert_basis");
 
 Function4perl(&module_generator_recursion, "module_generator_recursion");
+
+Function4perl(&compute_cc_degrees, "compute_cc_degrees");
 
 } // namespace polymake
 } // namespace polytope
