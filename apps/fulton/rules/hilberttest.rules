@@ -204,41 +204,41 @@ sub make_matrix_pair{
    return ($l, $r, $g);
 }
 
-sub twodim_standard_form{
-   my($gen0In, $gen1In) = @_;
-   my $gen0 = new Vector<Integer>(primitive($gen0In));
-   my $gen1 = new Vector<Integer>(primitive($gen1In));
-   my ($l, $r) = make_matrix_pair($gen0, 2, 1);
-   my $switch = new Matrix<Integer>([[0,1],[1,0]]);
-   $l = $l * $switch;
-   $r = $switch * $r;
-   # gen0 is now sent to [0,1] under r;
-   my $imGen1 = $r * $gen1;
-   if($imGen1->[0] < 0){
-      my $mirror = new Matrix<Integer>([[-1,0],[0,1]]);
-      $l = $l * $mirror;
-      $r = $mirror * $r;
-      $imGen1 = $mirror * $imGen1;
-   }
-   # First entry of second gen is positive now. This is our n.
-   my $n = $imGen1->[0];
-   # Fix second entry of second gen.
-   while($imGen1->[1] < 0){
-      my $additor = new Matrix<Integer>([[1,0],[1,1]]);
-      my $inverse = new Matrix<Integer>([[1,0],[-1,1]]);
-      $l = $l * $inverse;
-      $r = $additor * $r;
-      $imGen1 = $additor * $imGen1;
-   }
-   while($imGen1->[1] >= $n){
-      my $subtractor = new Matrix<Integer>([[1,0],[-1,1]]);
-      my $inverse = new Matrix<Integer>([[1,0],[1,1]]);
-      $l = $l * $inverse;
-      $r = $subtractor * $r;
-      $imGen1 = $subtractor * $imGen1;
-   }
-   return ($l, $r);  
-}
+# sub twodim_standard_form{
+#    my($gen0In, $gen1In) = @_;
+#    my $gen0 = new Vector<Integer>(primitive($gen0In));
+#    my $gen1 = new Vector<Integer>(primitive($gen1In));
+#    my ($l, $r) = make_matrix_pair($gen0, 2, 1);
+#    my $switch = new Matrix<Integer>([[0,1],[1,0]]);
+#    $l = $l * $switch;
+#    $r = $switch * $r;
+#    # gen0 is now sent to [0,1] under r;
+#    my $imGen1 = $r * $gen1;
+#    if($imGen1->[0] < 0){
+#       my $mirror = new Matrix<Integer>([[-1,0],[0,1]]);
+#       $l = $l * $mirror;
+#       $r = $mirror * $r;
+#       $imGen1 = $mirror * $imGen1;
+#    }
+#    # First entry of second gen is positive now. This is our n.
+#    my $n = $imGen1->[0];
+#    # Fix second entry of second gen.
+#    while($imGen1->[1] < 0){
+#       my $additor = new Matrix<Integer>([[1,0],[1,1]]);
+#       my $inverse = new Matrix<Integer>([[1,0],[-1,1]]);
+#       $l = $l * $inverse;
+#       $r = $additor * $r;
+#       $imGen1 = $additor * $imGen1;
+#    }
+#    while($imGen1->[1] >= $n){
+#       my $subtractor = new Matrix<Integer>([[1,0],[-1,1]]);
+#       my $inverse = new Matrix<Integer>([[1,0],[1,1]]);
+#       $l = $l * $inverse;
+#       $r = $subtractor * $r;
+#       $imGen1 = $subtractor * $imGen1;
+#    }
+#    return ($l, $r);  
+# }
 
 user_function threedim_case( $ ){
    my($c) = @_;
@@ -308,17 +308,17 @@ sub compute_gens_for_slice{
    return new Matrix([@result]);
 }
 
-sub compute_generators_of_ei{
-   my($i, $canonical, $cshift, $dcf, $hb) = @_;
-   my $cj = new Integer($canonical-1);
-   my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
-   my $last = $hb->[$hb->rows -1];
-   my $fix = $last - $cshift;
-   my $recursive = recursion($newi, $newj, $dcf, $hb);
-   # print "$newi $newj Recursion gives:\n$recursive.\nWill add $fix.\n";
-   my @result = (@$recursive, $fix);
-   return map($_ + $cshift + $shift, @result);
-}
+# sub compute_generators_of_ei{
+#    my($i, $canonical, $cshift, $dcf, $hb) = @_;
+#    my $cj = new Integer($canonical-1);
+#    my ($newi, $newj, $shift) = adjust_entries($i, $cj, $hb);
+#    my $last = $hb->[$hb->rows -1];
+#    my $fix = $last - $cshift;
+#    my $recursive = recursion($newi, $newj, $dcf, $hb);
+#    # print "$newi $newj Recursion gives:\n$recursive.\nWill add $fix.\n";
+#    my @result = (@$recursive, $fix);
+#    return map($_ + $cshift + $shift, @result);
+# }
 
 sub fix_vertex{
    my($vertex, $n, $q) = @_;

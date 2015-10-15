@@ -41,20 +41,95 @@ Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
 std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Integer>& last);
 std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjust_entries(Integer i, Integer j, const Matrix<Integer>& hb);
 std::pair<Integer, Vector<Integer> > get_canonical_divisor(const Matrix<Integer>& hb);
-Matrix<Integer> compute_cc_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb); 
+Matrix<Integer> compute_ext_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb); 
+Matrix<Integer> compute_generators_of_ei(Integer i, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
+std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen1, const Vector<Integer>& gen2);
+Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i);
+
 
 
 /////////////////////////////////////////////////
 // Implementation
 //
 
+Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i){
+   ExtGCD<Integer> gcd = ext_gcd(u[0], u[i]);
+   R.i = 0;
+   R.j = i;
+   R.a_ii = gcd.p;
+   R.a_ij = gcd.q;
+   R.a_ji = -gcd.k2;
+   R.a_jj = gcd.k1;
+   L.i = 0;
+   L.j = i;
+   L.a_ii = gcd.k1;
+   L.a_ij = -gcd.q;
+   L.a_ji = gcd.k2;
+   L.a_jj = gcd.p;
+   return gcd.g;
+}
 
-Matrix<Integer> compute_cc_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
+
+std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen0, const Vector<Integer>& gen1){
+   SparseMatrix2x2<Integer> R, L;
+   Matrix<Integer> MR(unit_matrix<Integer>(2)), ML(unit_matrix<Integer>(2)), addone(2,2), subone(2,2), changeCoord(2,2), mirror(2,2);
+   make_matrix_pair(R, L, gen0, 1);
+   MR.multiply_from_right(R);
+   ML.multiply_from_right(L);
+   Integer n;
+   Vector<Integer> imGen0(gen0), imGen1(gen1);
+   changeCoord(0,0) = 0;
+   changeCoord(0,1) = 1;
+   changeCoord(1,0) = 1;
+   changeCoord(1,1) = 0;
+   addone(0,0) = 1;
+   addone(0,1) = 0;
+   addone(1,0) = 1;
+   addone(1,1) = 1;
+   subone(0,0) = 1;
+   subone(0,1) = 0;
+   subone(1,0) = -1;
+   subone(1,1) = 1;
+   ML = ML * changeCoord;
+   MR = changeCoord * MR;
+   imGen1 = MR * imGen1;
+   if(imGen1[0] < 0){
+      mirror(0,0) = -1;
+      mirror(0,1) = 0;
+      mirror(1,0) = 0;
+      mirror(1,1) = 1;
+      ML = ML * mirror;
+      MR = mirror * MR;
+      imGen1 = mirror * imGen1;
+   }
+   n = imGen1[0];
+   while(imGen1[1] < 0){
+      ML = ML * subone;
+      MR = addone * MR;
+      imGen1 = addone * imGen1;
+   }
+   while(imGen1[1] >= n){
+      ML = ML * addone;
+      MR = subone * MR;
+      imGen1 = subone * imGen1;
+   }
+   return std::pair<Matrix<Integer>, Matrix<Integer> >(ML,MR);
+}
+
+
+Matrix<Integer> compute_generators_of_ei(Integer i, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
+   // cout << "canonical: " << canonical << endl;
+   return compute_ext_degrees(i, -1, dcf, hb) / hb.row(hb.rows() - 1);
+}
+
+
+Matrix<Integer> compute_ext_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
    Integer newi, cj, newj;
    Matrix<Integer> result;
    std::pair<Integer, Vector<Integer> > canonical = get_canonical_divisor(hb);
    cj = canonical.first + j;
    std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjustment = adjust_entries(i, cj, hb);
+   // cout << "Adjusted: " << adjustment << endl;
    newi = adjustment.first.first;
    newj = adjustment.first.second;
    result = module_generator_recursion(newi, newj, dcf, hb);
@@ -67,7 +142,7 @@ Matrix<Integer> compute_cc_degrees(Integer i, Integer j, const Vector<Integer>& 
 std::pair<Integer, Vector<Integer> > get_canonical_divisor(const Matrix<Integer>& hb){
    Vector<Integer> last(hb.row(hb.rows() -1)), secondlast(hb.row(hb.rows() -2)), shift(2);
    Integer n(last[0]), q(last[1]), index;
-   index = n - secondlast[1] + 1;
+   index = n - secondlast[0] + 1;
    shift[0] = 1-index;
    shift[1] = (q+1-index*q)/n;
    return std::pair<Integer, Vector<Integer> >(index, shift);
@@ -77,24 +152,26 @@ std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjust_entries(Integer 
    Vector<Integer> last(hb.row(hb.rows()-1)), shift(2);
    Integer n(last[0]), newi, newj;
    std::pair<Integer, Vector<Integer> > adjust = adjust_entry(i, last);
+   // cout << "Adjusted: " << adjust << endl;
    newi = adjust.first;
    shift += adjust.second;
    adjust = adjust_entry(j, last);
+   // cout << "Adjusted: " << adjust << endl;
    newj = adjust.first;
    shift += adjust.second;
    return std::pair<std::pair<Integer, Integer>, Vector<Integer> >(std::pair<Integer, Integer>(newi, newj), shift);
 }
 
 
-std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Integer> last){
+std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Integer>& last){
    Vector<Integer> shift(2);
    Integer result = i, n(last[0]);
-   while(i < 1){
-      i += n;
+   while(result < 1){
+      result += n;
       shift -= last;
    }
-   while(i >= n){
-      i -= n;
+   while(result >= n){
+      result -= n;
       shift += last;
    }
    return std::pair<Integer, Vector<Integer> >(result, shift);
@@ -214,7 +291,11 @@ Function4perl(&continued_fraction_to_hilbert_basis, "continued_fraction_to_hilbe
 
 Function4perl(&module_generator_recursion, "module_generator_recursion");
 
-Function4perl(&compute_cc_degrees, "compute_cc_degrees");
+Function4perl(&compute_ext_degrees, "compute_ext_degrees");
+
+Function4perl(&compute_generators_of_ei, "compute_generators_of_ei");
+
+Function4perl(&twodim_standard_form, "twodim_standard_form");
 
 } // namespace polymake
 } // namespace polytope
