@@ -31,6 +31,15 @@ namespace polymake {
 namespace polytope {
 namespace {
 
+class HBStep {
+public:
+   Array<std::pair<Vector<Rational>, Vector<Rational> > > modules;
+   Matrix<Integer> rays;
+   Matrix<Integer> facets;
+
+
+   
+};
 
 /////////////////////////////////////////////////
 // Declaration
@@ -45,14 +54,34 @@ Matrix<Integer> compute_ext_degrees(Integer i, Integer j, const Vector<Integer>&
 Matrix<Integer> compute_generators_of_ei(Integer i, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen1, const Vector<Integer>& gen2);
 Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i);
-
+std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive);
 
 
 /////////////////////////////////////////////////
 // Implementation
 //
 
-Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i){
+std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive){
+   Integer g;
+   Vector<Integer> currentVec(primitive);
+   int i, dim = primitive.size();
+   SparseMatrix<Integer> right = unit_matrix<Integer>(dim), left = unit_matrix<Integer>(dim);
+   SparseMatrix2x2<Integer> R, L;
+   for(i=1; i<dim; i++){
+      if(primitive[i] == 0){
+         continue;
+      }
+      g = make_matrix_pair(L, R, currentVec, i);
+      right.multiply_from_left(R);
+      left.multiply_from_right(L);
+      currentVec[0] = g;
+   }
+   return std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> >(left, right);
+}
+
+
+
+Integer make_matrix_pair(SparseMatrix2x2<Integer>& L, SparseMatrix2x2<Integer>& R, const Vector<Integer>& u, int i){
    ExtGCD<Integer> gcd = ext_gcd(u[0], u[i]);
    R.i = 0;
    R.j = i;
@@ -73,7 +102,7 @@ Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& 
 std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen0, const Vector<Integer>& gen1){
    SparseMatrix2x2<Integer> R, L;
    Matrix<Integer> MR(unit_matrix<Integer>(2)), ML(unit_matrix<Integer>(2)), addone(2,2), subone(2,2), changeCoord(2,2), mirror(2,2);
-   make_matrix_pair(R, L, gen0, 1);
+   make_matrix_pair(L, R, gen0, 1);
    MR.multiply_from_right(R);
    ML.multiply_from_right(L);
    Integer n;
