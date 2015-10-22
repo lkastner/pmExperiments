@@ -55,11 +55,16 @@ Matrix<Integer> compute_generators_of_ei(Integer i, const Vector<Integer>& dcf, 
 std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen1, const Vector<Integer>& gen2);
 Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i);
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive);
-
+Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input);
 
 /////////////////////////////////////////////////
 // Implementation
 //
+Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input){
+   Vector<Rational> result(input);
+
+   return result;
+}
 
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive){
    Integer g;
