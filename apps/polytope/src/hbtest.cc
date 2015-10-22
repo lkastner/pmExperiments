@@ -56,15 +56,25 @@ std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<I
 Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i);
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive);
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input);
+Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
 
 /////////////////////////////////////////////////
 // Implementation
 //
+Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
+   for(Entire<Rows<Matrix<Rational> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
+      cout << *facet << endl;
+   }
+   return Array<Vector<Rational> >();
+}
+
+
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input){
    Vector<Rational> result(input);
 
    return result;
 }
+
 
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive){
    Integer g;
@@ -330,6 +340,8 @@ Function4perl(&compute_ext_degrees, "compute_ext_degrees");
 Function4perl(&compute_generators_of_ei, "compute_generators_of_ei");
 
 Function4perl(&twodim_standard_form, "twodim_standard_form");
+
+Function4perl(&cone_to_divisor_slices, "cone_to_divisor_slices");
 
 } // namespace polymake
 } // namespace polytope
