@@ -58,10 +58,48 @@ std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input);
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
 Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
+Vector<Integer> continued_fraction_from_rational(const Rational& r);
+std::pair<Integer, Vector<Integer> > find_index_of_divisor(const Integer& ray0val, const Integer& ray1val, const Integer& n, const Integer& q);
+Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Rational>& rays, const Matrix<Rational>& facets, int facetIndex);
+
 
 /////////////////////////////////////////////////
 // Implementation
 //
+Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Rational>& rays, const Matrix<Rational>& facets, int facetIndex){
+   Vector<Integer> facet(facets.row(facetIndex));
+   Matrix<Integer> nonSelectedFacets(facets.minor(~scalar2set(facetIndex),All));
+   std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > orthBasis = find_orthogonal_lattice_basis(facet);
+   Matrix<Integer> LT(T(orthBasis.first)), RT(T(orthBasis.second));
+
+
+   return LT;
+}
+
+
+std::pair<Integer, Vector<Integer> > find_index_of_divisor(const Integer& ray0val, const Integer& ray1val, const Integer& n, const Integer& q){
+   ExtGCD<Integer> gcd = ext_gcd(q, n);
+   Integer result = ray0val + gcd.p*ray1val;
+   Vector<Integer> shift(2);
+   shift[0] = gcd.p*ray1val;
+   shift[1] = (shift[0]*n-ray1val*q)/(q*n);
+   return std::pair<Integer, Vector<Integer> >(result, shift);
+}
+
+
+Vector<Integer> continued_fraction_from_rational(const Rational& r){
+   Integer n(numerator(r)), q(denominator(r)), c(ceil(r));
+   Rational tmp;
+   if(q==1){
+      Vector<Integer> result(1);
+      result[0] = n;
+      return result;
+   } else {
+      tmp = c - r;
+      return c | continued_fraction_from_rational(1/tmp);
+   }
+}
+
 
 Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
    Matrix<Rational> prod = facets * (T(rays));
@@ -79,6 +117,7 @@ Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational
    }
    return numerator(floor(result));
 }
+
 
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
    Rational test;
@@ -391,6 +430,8 @@ Function4perl(&compute_generators_of_ei, "compute_generators_of_ei");
 Function4perl(&twodim_standard_form, "twodim_standard_form");
 
 Function4perl(&cone_to_divisor_slices, "cone_to_divisor_slices");
+
+Function4perl(&continued_fraction_from_rational, "continued_fraction_from_rational");
 
 } // namespace polymake
 } // namespace polytope
