@@ -57,20 +57,69 @@ Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& 
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive);
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input);
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
+Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
 
 /////////////////////////////////////////////////
 // Implementation
 //
-Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
-   for(Entire<Rows<Matrix<Rational> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
-      cout << *facet << endl;
+
+Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
+   Matrix<Rational> prod = facets * (T(rays));
+   Rational result(prod(0,0)), temp;
+   int i, j;
+   for(i=0; i<prod.rows(); i++){
+      result = result > prod(i,0) ? result : prod(i,0);
    }
-   return Array<Vector<Rational> >();
+   for(i=0; i<prod.rows(); i++){
+      temp = 0;
+      for(j=0; j<prod.cols(); j++){
+         temp = temp > prod(i,j) ? temp : prod(i,j);
+      }
+      result = result < temp ? result : temp;
+   }
+   return numerator(floor(result));
+}
+
+Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
+   Rational test;
+   int bound = find_number_of_steps(rays, facets).to_int(), i, n = rays.cols();
+   Array<Vector<Rational> > result(bound);
+   Vector<Rational> oneStep(n);
+   for(Entire<Rows<Matrix<Rational> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
+      for(Entire<Rows<Matrix<Rational> > >::const_iterator ray = entire(rows(rays)); !ray.at_end(); ray++) {
+         test = (*ray) * (*facet);
+         if(test > 0){
+            oneStep += (1/test) * (*ray);
+         }
+      }
+   }
+   for(i = 0; i < bound; i++){
+      result[i] = i*oneStep;
+   }
+   return result;
 }
 
 
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input){
-   Vector<Rational> result(input);
+   Vector<Rational> result(input), facetVals;
+   Rational test;
+   Map<Vector<Integer>, Vector<Integer> > facetRay;
+   int i;
+   for(Entire<Rows<Matrix<Integer> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
+      for(Entire<Rows<Matrix<Integer> > >::const_iterator ray = entire(rows(rays)); !ray.at_end(); ray++) {
+         test = (*ray) * (*facet);
+         if(test > 0){
+            facetRay[*facet] = *ray;
+         } 
+      }
+   }
+   facetVals = facets * input;
+   for(i=0; i<facetVals.size(); i++){
+      facetVals[i];
+      if(denominator(facetVals[i]) != 1){
+         cout << "This is not an int." << endl;
+      }
+   }
 
    return result;
 }
