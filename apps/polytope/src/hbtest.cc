@@ -44,6 +44,7 @@ public:
 /////////////////////////////////////////////////
 // Declaration
 //
+Matrix<Integer> continued_fraction_to_hilbert_basis(const Vector<Integer>& dcf);
 Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
@@ -57,23 +58,269 @@ Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& 
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive);
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input);
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
+Vector<Rational> get_oneStep_slice(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
 Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
 Vector<Integer> continued_fraction_from_rational(const Rational& r);
 std::pair<Integer, Vector<Integer> > find_index_of_divisor(const Integer& ray0val, const Integer& ray1val, const Integer& n, const Integer& q);
-Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Rational>& rays, const Matrix<Rational>& facets, int facetIndex);
+Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Integer>& rays, const Matrix<Integer>& facets, int facetIndex);
+Matrix<Integer> threedim_hb_old(const Matrix<Integer>& rays, const Matrix<Integer>& facets);
+Matrix<Integer> threedim_hb_v1(const Matrix<Integer>& rays, const Matrix<Integer>& facets);
+bool check_containment(const Matrix<Integer>& reductor, const Vector<Integer>& a, const Matrix<Integer>& facets);
+Matrix<Integer> reduce(const Matrix<Integer>& reductor, const Matrix<Integer>& given, const Matrix<Integer>& facets);
+int resp_containment(const Vector<Integer>& a, const Vector<Integer>& b, const Matrix<Integer>& facets);
+Matrix<Integer> interred(const Matrix<Integer>& gens, const Matrix<Integer>& facets);
+Integer optimize_upper_slice_bound(const Matrix<Integer>& gens, const Matrix<Integer>& facets);
+
+
+/////////////////////////////////////////////////
+// Global variables
+//
+Map<Vector<Integer>, Matrix<Integer> > cqshash;
+
+
+/////////////////////////////////////////////////
+// Classes
+//
+class twofacet{
+private:
+   Vector<Integer> facet, dcf;
+   std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > orthBasis;
+   std::pair<Matrix<Integer>, Matrix<Integer> > twodimstd;
+   bool smooth;
+   Integer n, q;
+   Matrix<Integer> projection, generatingRays, twodimFacets, hb;
+
+public:
+   twofacet(const Matrix<Integer>& rays, const Matrix<Integer>& facets, int facetIndex){
+      int rayIndex;
+      facet = facets.row(facetIndex);
+      orthBasis = find_orthogonal_lattice_basis(facet);
+      for(rayIndex = 0; rayIndex < 3; rayIndex++){
+         if(facet * rays.row(rayIndex) != 0){
+            break;
+         }
+      }
+      generatingRays = rays.minor(~scalar2set(rayIndex), All);
+      // cout << "GR: " << endl << generatingRays << endl;
+      generatingRays = T(orthBasis.first).minor(~scalar2set(0),All) * T(generatingRays);
+      // cout << "GR: " << endl << generatingRays << endl;
+      smooth = (abs(det(generatingRays)) == 1);
+      twodimstd = twodim_standard_form(generatingRays.col(0), generatingRays.col(1));
+      projection = twodimstd.second * T(orthBasis.first).minor(~scalar2set(0),All);
+      generatingRays = twodimstd.second * generatingRays;
+      // cout << "GR: " << endl << generatingRays << endl;
+      n = generatingRays(0,1);
+      q = generatingRays(1,1);
+      twodimFacets = Matrix<Integer>(2,2);
+      twodimFacets(0,0) = 1;
+      twodimFacets(0,1) = 0;
+      twodimFacets(1,0) = -q;
+      twodimFacets(1,1) = n;
+      dcf = continued_fraction_from_rational(Rational(n,n-q));
+      hb = continued_fraction_to_hilbert_basis(dcf);
+      // cout << "n: " << n << " q: " << q << endl;
+   }
+
+   Matrix<Integer> get_lift_of_pts(const Matrix<Integer>& dim2pts, Integer ht){
+      Matrix<Integer> result(dim2pts);
+      result = result * T(twodimstd.first);
+      result = (ht * ones_vector<Integer>(result.rows())) | result;
+      result = result * orthBasis.second;
+      return result;
+   }
+
+   Matrix<Integer> get_facet_hb(){
+      return get_lift_of_pts(hb, 0);
+   }
+
+   Matrix<Integer> get_gens_of_slice(const Vector<Rational>& slice){
+      // Vars:
+      Vector<Rational> vertex, divisor;
+      Vector<Integer> facetVals;
+      Matrix<Integer> twodimGens;
+      Rational height;
+      std::pair<Integer, Vector<Integer> > twodimIndex;
+      // Proc:
+      height = facet * slice;
+      vertex = projection * slice;
+      divisor = find_biggest_contained_divisor(T(generatingRays), twodimFacets, vertex);
+      if(smooth or ((denominator(divisor[0]) == 1) and ((denominator(divisor[1]) == 1)))){
+         twodimGens = Matrix<Integer>(1,2);
+         twodimGens(0,0) = numerator(divisor[0]);
+         twodimGens(0,1) = numerator(divisor[1]);
+      } else {
+         // cout << vertex << " - " << divisor << endl;
+         // cout << twodimFacets*vertex << " - " << twodimFacets*divisor << endl;
+         facetVals = twodimFacets*divisor;
+         twodimIndex = find_index_of_divisor(facetVals[0], facetVals[1], n, q);
+         // cout << "has index: " << twodimIndex.first << endl;
+         twodimGens = compute_generators_of_ei(twodimIndex.first, dcf, hb);
+         twodimGens -= repeat_row(twodimIndex.second, twodimGens.rows());
+      }
+      // cout << "Gens new: " << endl << twodimGens << endl;
+      // cout << "Eval: " << endl << twodimFacets*T(twodimGens) << endl;
+      return get_lift_of_pts(twodimGens, numerator(height));
+   }
+
+};
 
 
 /////////////////////////////////////////////////
 // Implementation
 //
-Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Rational>& rays, const Matrix<Rational>& facets, int facetIndex){
+Matrix<Integer> threedim_hb_v1(const Matrix<Integer>& rays, const Matrix<Integer>& facets){
+   Matrix<Rational> raysR(rays), facetsR(facets);
+   Matrix<Integer> result, newGens;
+   Vector<Rational> oneStep = get_oneStep_slice(raysR, facetsR);
+   Integer bound = find_number_of_steps(raysR, facetsR), current = 1, tmp;
+   twofacet t0(rays, facets, 0), t1(rays, facets, 1), t2(rays, facets, 2);
+   // Initializing w/ facethbs:
+   result = t0.get_facet_hb();
+   result = result / t1.get_facet_hb();
+   result = result / t2.get_facet_hb();
+   result = interred(result, facets);
+   bound = optimize_upper_slice_bound(result, facets);
+   // Vile loop:
+   while(current <= bound){
+      newGens = t0.get_gens_of_slice(current * oneStep);
+      newGens = newGens / t1.get_gens_of_slice(current * oneStep);
+      newGens = newGens / t2.get_gens_of_slice(current * oneStep);
+      cout << "Computed gens." << endl;
+      newGens = interred(newGens, facets);
+      newGens = reduce(result, newGens, facets);
+      tmp = optimize_upper_slice_bound(newGens, facets);
+      cout << "Bound optimized." << endl;
+      bound = bound < tmp ? bound : tmp;
+      result = result / newGens;
+      current++;
+      cout << "Current: " << current << " bound: " << bound << endl;
+   }
+   return result;
+}
+
+
+Integer optimize_upper_slice_bound(const Matrix<Integer>& gens, const Matrix<Integer>& facets){
+   Integer max, result(accumulate(facets * gens.row(0), operations::max()));
+   for(Entire<Rows<Matrix<Integer> > >::const_iterator g = entire(rows(gens)); !g.at_end(); g++) {
+      max = accumulate(facets * (*g), operations::max());
+      result = result < max ? result : max;
+   }
+   return result;
+}
+
+
+Matrix<Integer> interred(const Matrix<Integer>& gens, const Matrix<Integer>& facets){
+   Matrix<Integer> result(0, gens.rows()), keep(0, gens.rows()), reductor(gens);
+   Vector<Integer> current;
+   int check;
+   bool bad;
+   while(0 < reductor.rows()){
+      current = reductor.row(0);
+      reductor = reductor.minor(~scalar2set(0), All);
+      keep = Matrix<Integer>(0, gens.rows());
+      bad = false;
+      for(Entire<Rows<Matrix<Integer> > >::const_iterator r = entire(rows(reductor)); !r.at_end(); r++) {
+         check = resp_containment(current, *r, facets);
+         if(check == 1){
+            bad = true;
+            keep = keep / *r;
+         } else if(check == 0){
+            keep = keep / *r;
+         }
+      }
+      if(!bad) result = result / current;
+      reductor = keep;
+      // cout << reductor.rows() << endl;
+   }
+   return result;
+}
+
+
+int resp_containment(const Vector<Integer>& a, const Vector<Integer>& b, const Matrix<Integer>& facets){
+   // Output:
+   // 1   if  a\in b+\sigma
+   // -1  if  b\in a+\sigma
+   // 0   else
+   Vector<Integer> test = facets*(a-b);
+   Integer min, max;
+   min = accumulate(test, operations::min());
+   max = accumulate(test, operations::max());
+   if(min >= 0) return 1;
+   if(max <= 0) return -1;
+   return 0;
+}
+
+
+Matrix<Integer> threedim_hb_old(const Matrix<Integer>& rays, const Matrix<Integer>& facets){
+   Matrix<Rational> raysR(rays), facetsR(facets);
+   Matrix<Integer> result, current;
+   cout << "Slicing." << endl;
+   Array<Vector<Rational> > slices(cone_to_divisor_slices(raysR, facetsR));
+   cout << slices.size() << endl;
+   result = project_and_lift_3dim(slices, rays, facets, 0);
+   cout << "Ok." << endl;
+   cout << "Upper slice bound could be: " << optimize_upper_slice_bound(result, facets) << endl;
+   current = project_and_lift_3dim(slices, rays, facets, 1);
+   //current = reduce(result, current, facetsR);
+   result = result / current;
+   cout << "Ok." << endl;
+   cout << "Upper slice bound could be: " << optimize_upper_slice_bound(result, facets) << endl;
+   current =  project_and_lift_3dim(slices, rays, facets, 2);
+   //current = reduce(result, current, facetsR);
+   result = result / current;
+   cout << "Ok." << endl;
+   return interred(result, facets);
+}
+
+
+
+Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Integer>& rays, const Matrix<Integer>& facets, int facetIndex){
+   cout << "Entered pal3dim." << endl;
+   twofacet testing(rays, facets, facetIndex);
+   Matrix<Integer> twodimGens, reductor;
    Vector<Integer> facet(facets.row(facetIndex));
-   Matrix<Integer> nonSelectedFacets(facets.minor(~scalar2set(facetIndex),All));
-   std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > orthBasis = find_orthogonal_lattice_basis(facet);
-   Matrix<Integer> LT(T(orthBasis.first)), RT(T(orthBasis.second));
+   Rational height;
+
+   reductor = testing.get_facet_hb();
+   cout << "Setup done." << endl;
+   for(Entire<Array<Vector<Rational> > >::const_iterator slice = entire(slices); !slice.at_end(); slice++) {
+      height = facet * (*slice);
+      // cout << *slice << " at height " << height << endl;
+      if(height == 0){
+         continue;
+      } else {
+         twodimGens = testing.get_gens_of_slice(*slice);
+         twodimGens = reduce(reductor, twodimGens, facets);
+         reductor = reductor / twodimGens;
+      }
+   }
+   return reductor;
+}
 
 
-   return LT;
+Matrix<Integer> reduce(const Matrix<Integer>& reductor, const Matrix<Integer>& given, const Matrix<Integer>& facets){
+   bool test;
+   Matrix<Integer> result(0,reductor.cols());
+   for(Entire<Rows<Matrix<Integer> > >::const_iterator gen = entire(rows(given)); !gen.at_end(); gen++) {
+      test = check_containment(reductor, *gen, facets);
+      if(!test){
+         result = result/(Vector<Integer>(*gen));
+      }
+   }
+   return result;
+}
+
+
+bool check_containment(const Matrix<Integer>& reductor, const Vector<Integer>& a, const Matrix<Integer>& facets){
+   Vector<Rational> test;
+   Rational min;
+   for(Entire<Rows<Matrix<Integer> > >::const_iterator r = entire(rows(reductor)); !r.at_end(); r++) {
+      test = facets*(a-(*r));
+      // Should just be min(test)
+      min = accumulate(test, operations::min());
+      if(min >= 0) return true;
+   }
+   return false;
 }
 
 
@@ -82,7 +329,7 @@ std::pair<Integer, Vector<Integer> > find_index_of_divisor(const Integer& ray0va
    Integer result = ray0val + gcd.p*ray1val;
    Vector<Integer> shift(2);
    shift[0] = gcd.p*ray1val;
-   shift[1] = (shift[0]*n-ray1val*q)/(q*n);
+   shift[1] = (shift[0]*q-ray1val)/n;
    return std::pair<Integer, Vector<Integer> >(result, shift);
 }
 
@@ -120,9 +367,19 @@ Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational
 
 
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
-   Rational test;
-   int bound = find_number_of_steps(rays, facets).to_int(), i, n = rays.cols();
+   int bound = find_number_of_steps(rays, facets).to_int(), i;
    Array<Vector<Rational> > result(bound);
+   Vector<Rational> oneStep = get_oneStep_slice(rays, facets);
+   for(i = 0; i < bound; i++){
+      result[i] = i*oneStep;
+   }
+   return result;
+}
+
+
+Vector<Rational> get_oneStep_slice(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
+   Rational test;
+   int n = rays.cols();
    Vector<Rational> oneStep(n);
    for(Entire<Rows<Matrix<Rational> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
       for(Entire<Rows<Matrix<Rational> > >::const_iterator ray = entire(rows(rays)); !ray.at_end(); ray++) {
@@ -132,18 +389,14 @@ Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, co
          }
       }
    }
-   for(i = 0; i < bound; i++){
-      result[i] = i*oneStep;
-   }
-   return result;
+   return oneStep;
 }
 
 
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input){
    Vector<Rational> result(input), facetVals;
-   Rational test;
+   Rational test, fix;
    Map<Vector<Integer>, Vector<Integer> > facetRay;
-   int i;
    for(Entire<Rows<Matrix<Integer> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
       for(Entire<Rows<Matrix<Integer> > >::const_iterator ray = entire(rows(rays)); !ray.at_end(); ray++) {
          test = (*ray) * (*facet);
@@ -153,13 +406,14 @@ Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, con
       }
    }
    facetVals = facets * input;
-   for(i=0; i<facetVals.size(); i++){
-      facetVals[i];
-      if(denominator(facetVals[i]) != 1){
-         cout << "This is not an int." << endl;
+   for(Entire<Rows<Matrix<Integer> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
+      test = input * (*facet);
+      if(denominator(test) != 1){
+         //cout << "This is not an int." << endl;
+         fix = (ceil(test) - test) / (facetRay[*facet] * (*facet));
+         result += fix * facetRay[*facet];
       }
    }
-
    return result;
 }
 
@@ -204,24 +458,17 @@ Integer make_matrix_pair(SparseMatrix2x2<Integer>& L, SparseMatrix2x2<Integer>& 
 
 std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen0, const Vector<Integer>& gen1){
    SparseMatrix2x2<Integer> R, L;
-   Matrix<Integer> MR(unit_matrix<Integer>(2)), ML(unit_matrix<Integer>(2)), addone(2,2), subone(2,2), changeCoord(2,2), mirror(2,2);
+   Matrix<Integer> MR(unit_matrix<Integer>(2)), ML(unit_matrix<Integer>(2)),  changeCoord(2,2), mirror(2,2), add(2,2), sub(2,2);
    make_matrix_pair(L, R, gen0, 1);
+   Integer mod, result, factor;
    MR.multiply_from_right(R);
    ML.multiply_from_right(L);
    Integer n;
-   Vector<Integer> imGen0(gen0), imGen1(gen1);
+   Vector<Integer> imGen0(gen0), imGen1(gen1), test;
    changeCoord(0,0) = 0;
    changeCoord(0,1) = 1;
    changeCoord(1,0) = 1;
    changeCoord(1,1) = 0;
-   addone(0,0) = 1;
-   addone(0,1) = 0;
-   addone(1,0) = 1;
-   addone(1,1) = 1;
-   subone(0,0) = 1;
-   subone(0,1) = 0;
-   subone(1,0) = -1;
-   subone(1,1) = 1;
    ML = ML * changeCoord;
    MR = changeCoord * MR;
    imGen1 = MR * imGen1;
@@ -235,23 +482,41 @@ std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<I
       imGen1 = mirror * imGen1;
    }
    n = imGen1[0];
-   while(imGen1[1] < 0){
-      ML = ML * subone;
-      MR = addone * MR;
-      imGen1 = addone * imGen1;
-   }
-   while(imGen1[1] >= n){
-      ML = ML * addone;
-      MR = subone * MR;
-      imGen1 = subone * imGen1;
-   }
+   result = imGen1[1];
+   mod = result % n;
+   if(mod < 0) mod += n;
+   factor = (mod - result) / n;
+   add(0,0) = 1;
+   add(0,1) = 0;
+   add(1,0) = factor;
+   add(1,1) = 1;
+   sub(0,0) = 1;
+   sub(0,1) = 0;
+   sub(1,0) = -factor;
+   sub(1,1) = 1;
+   test = add * imGen1;
+   MR = add * MR;
+   ML = ML * sub;
+   cout << "Testing: " << imGen1 << " -- " << test << endl;
    return std::pair<Matrix<Integer>, Matrix<Integer> >(ML,MR);
 }
 
 
 Matrix<Integer> compute_generators_of_ei(Integer i, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
    // cout << "canonical: " << canonical << endl;
-   return compute_ext_degrees(i, -1, dcf, hb) / hb.row(hb.rows() - 1);
+   Vector<Integer> last(hb.row(hb.rows() - 1)), key;
+   Integer n(last[0]);
+   Matrix<Integer> result;
+   std::pair<Integer, Vector<Integer> > fix(adjust_entry(i, last));
+   if((fix.first == n) or (fix.first == 0)) cout << "Take care!" << endl;
+   key = Vector<Integer>(fix.first | dcf);
+   if(cqshash.exists(key)){
+      result = cqshash[key];
+   } else {
+      result = compute_ext_degrees(fix.first, -1, dcf, hb) / hb.row(hb.rows() - 1);
+      cqshash[key] = result;
+   }
+   return result + repeat_row(fix.second, result.rows());
 }
 
 
@@ -297,15 +562,12 @@ std::pair<std::pair<Integer, Integer>, Vector<Integer> > adjust_entries(Integer 
 
 std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Integer>& last){
    Vector<Integer> shift(2);
-   Integer result = i, n(last[0]);
-   while(result < 1){
-      result += n;
-      shift -= last;
-   }
-   while(result >= n){
-      result -= n;
-      shift += last;
-   }
+   Integer result = i, n(last[0]), mod, factor;
+   mod = result % n;
+   if(mod <= 0) mod += n;
+   factor = (mod - result) / n;
+   result += factor * n;
+   shift -= factor * last;
    return std::pair<Integer, Vector<Integer> >(result, shift);
 }
 
@@ -432,6 +694,10 @@ Function4perl(&twodim_standard_form, "twodim_standard_form");
 Function4perl(&cone_to_divisor_slices, "cone_to_divisor_slices");
 
 Function4perl(&continued_fraction_from_rational, "continued_fraction_from_rational");
+
+Function4perl(&threedim_hb_old, "threedim_hb_old");
+
+Function4perl(&threedim_hb_v1, "threedim_hb_v1");
 
 } // namespace polymake
 } // namespace polytope
