@@ -587,27 +587,8 @@ sub divide_polys{
 
 sub get_singular_poly{
    my($name, $ring) = @_;
-   singular_eval("int n = size(".$name.")");
-   my $numTerms = singular_get_var("n");
-   my $numVars = $ring->n_vars;
-   my $exponents = new Matrix<Integer>(0, $numVars);
-   my $coefficients = new Vector<Rational>();
-   # print "NumTerms: ";
-   while($numTerms > 0){
-      singular_eval("intvec exponent = leadexp(".$name.");");
-      singular_eval("int num = int(numerator(leadcoef(".$name.")));");
-      singular_eval("int den = int(denominator(leadcoef(".$name.")));");
-      my $exponent = singular_get_var("exponent");
-      my $coefficient = new Rational(singular_get_var("num"),singular_get_var("den"));
-      $exponents = new Matrix<Integer>($exponents/$exponent);
-      $coefficients = new Vector<Rational>($coefficients|$coefficient);
-      singular_eval($name." = ".$name."-lead(".$name.");");
-      singular_eval("int n = size(".$name.")");
-      $numTerms = singular_get_var("n");
-      # print $numTerms,",";
-   }
-   # print "\n";
-   return new Polynomial((new Matrix<Int>($exponents)),$coefficients, $ring);
+   my $a = singular_get_var($name);
+   return new Polynomial($a[0],$a[1], $ring);
 }
 
 user_function singular_gcd( $ , $ ){
