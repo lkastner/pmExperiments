@@ -1,0 +1,244 @@
+declare object T1 {
+
+   property IDEAL : Ideal;
+
+   property HOMOGENEOUS : Bool;
+
+   property RING_DEGREES : Matrix;
+
+   property T1_DENOMINATOR : Matrix<Polynomial>;
+
+   property T1_KBASE : Matrix<Polynomial>;
+   
+   property T1_KBASE_DEGREES : Matrix;
+
+   property SINGULAR_T1 : String;
+
+   property IDEAL_DEGREES : Matrix;
+
+   property T1_NUMERATOR_DEGREES : Matrix;
+   
+   property T1_DENOMINATOR_DEGREES : Matrix;
+
+   property A_DEGREES : Matrix;
+
+   property A : Matrix<Polynomial>;
+
+   property B1 : Matrix<Polynomial>;
+
+   property IS_FINITE_DIMENSIONAL : Bool;
+
+   property DIM : Integer;
+
+   property VDIM : Integer;
+   
+   rule T1_KBASE_DEGREES : T1_KBASE, RING_DEGREES, T1_NUMERATOR_DEGREES {
+      my $vdegs = $this->RING_DEGREES;
+      my $t1ambDegs = $this->T1_NUMERATOR_DEGREES;
+      my $t1Kbase = $this->T1_KBASE;
+      my @result = ();
+      foreach my $t1 (@$t1Kbase) {
+         push @result, degree_of_vector($t1, $vdegs, $t1ambDegs);
+      }
+      $this->T1_KBASE_DEGREES = \@result;
+   } precondition : HOMOGENEOUS, IS_FINITE_DIMENSIONAL;
+
+   rule T1_KBASE : SINGULAR_T1, T1_DENOMINATOR, IDEAL.RING {
+      my $name = $this->SINGULAR_T1;
+      my $R = $this->IDEAL->RING;
+      my $t1Name = $name."_t1";
+      my $t1Kbase = $name."_t1kbase";
+      my $cmd = "setring(".$name."_ring);\n";
+      $cmd .= "def ".$t1Kbase." = kbase(".$t1Name."[1]);\n";
+      singular_eval($cmd);
+      $this->T1_KBASE = transpose(get_singular_matrix($t1Kbase, $R));
+   } precondition : IS_FINITE_DIMENSIONAL;
+
+   rule IS_FINITE_DIMENSIONAL : DIM {
+      $this->IS_FINITE_DIMENSIONAL = $this->DIM == 0;
+   }
+
+   rule T1_DENOMINATOR_DEGREES : T1_NUMERATOR_DEGREES, RING_DEGREES, T1_DENOMINATOR {
+      my $vdegs = $this->RING_DEGREES;
+      my $t1ambDegs = $this->T1_NUMERATOR_DEGREES;
+      my $t1Den = $this->T1_DENOMINATOR;
+      my @result = ();
+      foreach my $t1 (@$t1Den) {
+         push @result, degree_of_vector($t1, $vdegs, $t1ambDegs);
+      }
+      $this->T1_DENOMINATOR_DEGREES = \@result;
+   } precondition : HOMOGENEOUS;
+
+   
+   rule T1_NUMERATOR_DEGREES : B1, IDEAL_DEGREES, RING_DEGREES{
+      my $B1 = $this->B1;
+      my $homDegs = -$this->IDEAL_DEGREES;
+      my $vdegs = $this->RING_DEGREES;
+      my @result = ();
+      foreach my $b1 (@$B1){
+         push @result, degree_of_vector($b1, $vdegs, $homDegs);
+      }
+      $this->T1_NUMERATOR_DEGREES = \@result;
+   } precondition : HOMOGENEOUS;
+
+   rule DIM, VDIM : SINGULAR_T1, T1_DENOMINATOR {
+      my $name = $this->SINGULAR_T1;
+      my $t1Name = $name."_t1";
+      my $dim = $name."_dim";
+      my $vdim = $name."_vdim";
+      my $cmd = "setring(".$name."_ring);\n";
+      $cmd .= "int ".$dim." = dim(".$t1Name."[1]);\n";
+      $cmd .= "int ".$vdim." = vdim(".$t1Name."[1]);\n";
+      singular_eval($cmd);
+      $this->DIM = singular_get_var($dim);
+      $this->VDIM = singular_get_var($vdim);
+   }
+
+   rule HOMOGENEOUS : IDEAL.GENERATORS, RING_DEGREES {
+      my $gens = $this->IDEAL->GENERATORS;
+      my $vdegs = $this->RING_DEGREES;
+      foreach my $gen (@$gens) {
+         if(!is_homogeneous($vdegs, $gen)){
+            $this->HOMOGENEOUS = 0;
+            return;
+         }
+      }
+      $this->HOMOGENEOUS = 1;
+   }
+
+   rule A_DEGREES : A, IDEAL_DEGREES, RING_DEGREES {
+      my $A = $this->A;
+      my $ideg = $this->IDEAL_DEGREES;
+      my $vdeg = $this->RING_DEGREES;
+      my @result = ();
+      foreach my $a (@$A) {
+         push @result, degree_of_vector($a, $vdeg, $ideg);
+      }
+      $this->A_DEGREES = \@result;
+   } precondition : HOMOGENEOUS;
+
+   rule IDEAL_DEGREES : IDEAL.GENERATORS, RING_DEGREES {
+      my $gens = $this->IDEAL->GENERATORS;
+      my $vdegs = $this->RING_DEGREES;
+      my @result = ();
+      foreach my $gen (@$gens) {
+         push @result, degree_of_xpoly($gen, $vdegs);
+      }
+      $this->IDEAL_DEGREES = \@result;
+   } precondition : HOMOGENEOUS;
+
+   rule SINGULAR_T1 : IDEAL.RING, IDEAL.GENERATORS {
+      my $R = $this->IDEAL->RING;
+      my $gens = $this->IDEAL->GENERATORS;
+      my $name = get_random_string();
+      my $ringName = $name."_ring";
+      my $idealName = $name."_ideal";
+      my $t1Name = $name."_t1";
+      load_singular_library("sing.lib");
+      my $cmd = "ring ".$ringName." = 0,(".join(",",$R->variables)."),dp;\n";
+      $cmd .= "ideal ".$idealName." = ".join(",",@$gens).";\n";
+      $cmd .= "list ".$t1Name." = T_1(".$idealName.",1);\n";
+      $cmd .= $t1Name.";\n";
+      singular_eval($cmd);
+
+      print $cmd;
+      $this->SINGULAR_T1 = $name;
+   }
+
+   rule A, B1, T1_DENOMINATOR : SINGULAR_T1, IDEAL.RING{
+      my $name = $this->SINGULAR_T1;
+      my $R = $this->IDEAL->RING;
+      my $t1Name = $name."_t1";
+      my $A = $name."_Amat";
+      my $B1 = $name."_B1mat";
+      my $T1 = $name."_t1mat";
+      my $cmd = "setring(".$name."_ring);\n";
+      $cmd .= "def ".$A." = matrix(".$t1Name."[3]);\n";
+      $cmd .= "def ".$B1." = matrix(".$t1Name."[2]);\n";
+      $cmd .= "def ".$T1." = matrix(".$t1Name."[1]);\n";
+      singular_eval($cmd);
+      $this->A = transpose(get_singular_matrix($A, $R));
+      $this->B1 = transpose(get_singular_matrix($B1, $R));
+      $this->T1_DENOMINATOR = transpose(get_singular_matrix($T1, $R));
+   }
+   
+   user_method kbase_in_deg(Vector) {
+      my $t1Object = $_[0];
+      my $deg = $_[1];
+      my $R = $t1Object->IDEAL->RING;
+      my $name = $t1Object->SINGULAR_T1;
+      my $t1Name = $name."_t1";
+      my $cmd = "setring(".$name."_ring);\n";
+      my $vdegs = $t1Object->RING_DEGREES;
+      my $t1Gens = $t1Object->T1_NUMERATOR_DEGREES;
+      my $n = $t1Gens->rows();
+      my $i = 0;
+      my @kGens = ();
+      foreach my $gen (@$t1Gens) {
+         my $diff = $deg - $gen;
+         my @monomials = monomials_of_deg($R, $vdegs, $diff);
+         # print "Monomials computed.\n";
+         foreach my $mon (@monomials) {
+            my $v = new Vector<Polynomial>($n);
+            $v->[$i] = $mon;
+            push @kGens, $v;
+            # print $v,"\n";
+         }
+         $i++;
+      }
+      # print join("\n", @kGens),"\n--------------\n";
+      my $kGens = new Matrix<Polynomial>(\@kGens);
+      my $singkGens = get_random_string();
+      my $singkBase = $singkGens."_base";
+      $cmd .= build_singular_matrix(transpose($kGens), $singkGens);
+      $cmd .= "def ".$singkBase." = matrix(interred(reduce(module(".$singkGens."), ".$t1Name."[1])));\n";
+      # $cmd .= $singkGens.";\n";
+      # $cmd .= $singkBase.";\n";
+      singular_eval($cmd);
+      my $kGensReduced = transpose(get_singular_matrix($singkBase, $R));
+      my @kBase = ();
+      my $z = new Polynomial($R);
+      my $zero = new Vector<Polynomial>(map($z, 1..$n));
+      foreach my $gen (@$kGensReduced) {
+         if($gen != $zero) {
+            push @kBase, $gen;
+         }
+      }
+      return new Matrix<Polynomial>(\@kBase);
+   }
+}
+
+sub monomials_of_deg {
+   my($R, $vdegs, $deg) = @_;
+   my $C = new Cone(INPUT_RAYS=>$vdegs);
+   $C->POINTED or die "Weight cone not pointed.";
+   my $eq = (-$deg | transpose(new Matrix($vdegs)));
+   my $ineq = (zero_vector | unit_matrix($vdegs->rows()));
+   my $P = new Polytope(EQUATIONS=> $eq, INEQUALITIES=>$ineq);
+   my $exps = $P->LATTICE_POINTS->minor(All, ~[0]);
+   my @result = ();
+   foreach my $exp (@$exps) {
+      push @result, new Monomial((new Vector<Int>($exp)), $R);
+   }
+   return @result;
+}
+
+sub is_homogeneous {
+   my($vdegs, $f) = @_;
+   my $ms = $f->monomials_as_matrix();
+   my $deg = $ms->[0] * $vdegs;
+   foreach my $m (@$ms) {
+      my $test = $m * $vdegs;
+      if($test != $deg){
+         return 0;
+      }
+   }
+   return 1;
+}
+
+sub degree_of_vector{
+   my($vec, $xdegs, $bdegs) = @_;
+   my $i = 0;
+   while($vec->[$i] == 0){ $i++;}
+   return degree_of_xpoly($vec->[$i], $xdegs) + $bdegs->[$i];
+}

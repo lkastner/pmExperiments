@@ -116,8 +116,12 @@ public:
       twodimFacets(0,1) = 0;
       twodimFacets(1,0) = -q;
       twodimFacets(1,1) = n;
-      dcf = continued_fraction_from_rational(Rational(n,n-q));
-      hb = continued_fraction_to_hilbert_basis(dcf);
+      if(!smooth){
+         dcf = continued_fraction_from_rational(Rational(n,n-q));
+         hb = continued_fraction_to_hilbert_basis(dcf);
+      } else {
+         hb = generatingRays;
+      }
       // cout << "n: " << n << " q: " << q << endl;
    }
 
@@ -169,32 +173,47 @@ public:
 // Implementation
 //
 Matrix<Integer> threedim_hb_v1(const Matrix<Integer>& rays, const Matrix<Integer>& facets){
+   // cout << "V1 entered." << endl;
+   // cout << "Rays: " << endl << rays << endl;
+   // cout << "Facets: " << endl << facets << endl;
    Matrix<Rational> raysR(rays), facetsR(facets);
    Matrix<Integer> result, newGens;
    Vector<Rational> oneStep = get_oneStep_slice(raysR, facetsR);
    Integer bound = find_number_of_steps(raysR, facetsR), current = 1, tmp;
    twofacet t0(rays, facets, 0), t1(rays, facets, 1), t2(rays, facets, 2);
+   // cout << "Init done." << endl;
    // Initializing w/ facethbs:
    result = t0.get_facet_hb();
+   // cout << "First hb: " << endl << t0.get_facet_hb() << endl;
    result = result / t1.get_facet_hb();
+   // cout << "Second hb: " << endl << t1.get_facet_hb() << endl;
    result = result / t2.get_facet_hb();
+   // cout << "Third hb: " << endl << t2.get_facet_hb() << endl;
+   // cout << "Init HB size: " << result.rows() << endl;
+   // cout << result << endl;
    result = interred(result, facets);
+   // cout << "Reduced HB size: " << result.rows() << endl;
+   // cout << result << endl;
    bound = optimize_upper_slice_bound(result, facets);
+   // cout << "Setup done." << endl;
    // Vile loop:
    while(current <= bound){
       newGens = t0.get_gens_of_slice(current * oneStep);
       newGens = newGens / t1.get_gens_of_slice(current * oneStep);
       newGens = newGens / t2.get_gens_of_slice(current * oneStep);
-      cout << "Computed gens." << endl;
-      newGens = interred(newGens, facets);
+      // cout << "Computed gens." << endl;
       newGens = reduce(result, newGens, facets);
-      tmp = optimize_upper_slice_bound(newGens, facets);
-      cout << "Bound optimized." << endl;
-      bound = bound < tmp ? bound : tmp;
+      newGens = interred(newGens, facets);
+      if(newGens.rows() > 0){
+         tmp = optimize_upper_slice_bound(newGens, facets);
+         // cout << "Bound optimized." << endl;
+         bound = bound < tmp ? bound : tmp;
+      }
       result = result / newGens;
       current++;
       cout << "Current: " << current << " bound: " << bound << endl;
    }
+   // cout << "Vile loop done." << endl;
    return result;
 }
 
@@ -497,7 +516,7 @@ std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<I
    test = add * imGen1;
    MR = add * MR;
    ML = ML * sub;
-   cout << "Testing: " << imGen1 << " -- " << test << endl;
+   // cout << "Testing: " << imGen1 << " -- " << test << endl;
    return std::pair<Matrix<Integer>, Matrix<Integer> >(ML,MR);
 }
 

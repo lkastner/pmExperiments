@@ -364,25 +364,66 @@ sub splice_ray{
    return @result;
 }
 
+sub benchmark_hb{
+   my($count, $bound) = @_;
+   my @cones = ();
+   while(@cones < $count){
+      my $c = random_3dim_cone($bound);
+      $c->RAYS;
+      $c->FACETS;
+      if($c->DIM == 3){
+         push @cones, $c;
+      }
+   }
+   use Benchmark qw(:all);
+   my $t = timethese(1, { 'v1' => sub {
+         foreach my $c (@cones){
+            my $rays = new Matrix<Integer>(map(primitive($_),@{$c->RAYS}));
+            my $facets = new Matrix<Integer>(map(primitive($_),@{$c->FACETS}));
+            my $testhbv1 = threedim_hb_v1($rays, $facets);
+         }
+      },
+      'duallibnormaliz' => sub {
+         foreach my $c (@cones){
+            normaliz_compute($c,hilbert_basis=>1, dual_algorithm=>1);
+         }
+      },
+      'libnormaliz' => sub {
+         foreach my $c (@cones){
+            normaliz_compute($c,hilbert_basis=>1);
+         }
+      }
+   });
+   cmpthese($t);
+
+}
+
 
 sub check_random_cone{
    my($bound) = @_;
+   my $c = random_3dim_cone($bound);
+   return benchmark_cone($c);
+}
+
+sub benchmark_cone{
+   my($c) = @_;
    use Benchmark qw(:all) ;
-   my $c = random_3dim_cone(90);
    my $rays = new Matrix<Integer>(map(primitive($_),@{$c->RAYS}));
    my $facets = new Matrix<Integer>(map(primitive($_),@{$c->FACETS}));
-   my $t0 = Benchmark->new; my $testhb = threedim_hb_old($rays, $facets); my $t1 = Benchmark->new;
+   # my $t0 = Benchmark->new; my $testhb = threedim_hb_old($rays, $facets); my $t1 = Benchmark->new;
    my $a0 = Benchmark->new; my $testhbv1 = threedim_hb_v1($rays, $facets); my $a1 = Benchmark->new;
-   my $r0 = Benchmark->new; my $realhb = $c->HILBERT_BASIS; my $r1 = Benchmark->new;
-   my $n0 = Benchmark->new; normaliz_compute($c,hilbert_basis=>1, verbose=>1); my $n1 = Benchmark->new;
+   # my $r0 = Benchmark->new; my $realhb = $c->HILBERT_BASIS; my $r1 = Benchmark->new;
+   # my $n0 = Benchmark->new; normaliz_compute($c,hilbert_basis=>1, verbose=>1); my $n1 = Benchmark->new;
    my $d0 = Benchmark->new; normaliz_compute($c,hilbert_basis=>1, verbose=>1, dual_algorithm=>1); my $d1 = Benchmark->new;
-   print "         Our alg: ",timestr(timediff($t1, $t0)),"\n";
+   # print "         Our alg: ",timestr(timediff($t1, $t0)),"\n";
    print "      Our v1 alg: ",timestr(timediff($a1, $a0)),"\n";
-   print "          pm:lib: ",timestr(timediff($r1, $r0)),"\n";
-   print "     libnormaliz: ",timestr(timediff($n1, $n0)),"\n";
+   # print "          pm:lib: ",timestr(timediff($r1, $r0)),"\n";
+   # print "     libnormaliz: ",timestr(timediff($n1, $n0)),"\n";
    print "dual libnormaliz: ",timestr(timediff($d1, $d0)),"\n";
-   print $testhb->rows()," ",$realhb->rows,"\n";
-   return $c;
+   # print $testhb->rows()," ";
+   # print $realhb->rows," ";
+   # print $testhbv1->rows,"\n";
+   # return (timediff($a1, $a0),timediff($r1, $r0),timediff($n1, $n0),timediff($d1, $d0));
 }
 
 sub random_3dim_cone{

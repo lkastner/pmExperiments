@@ -32,6 +32,7 @@ INCLUDE
    dgla.rules
    tikz.rules
    hilberttest.rules
+   t1.rules
 
 user_function testing(Cone, Vector, Vector){
    my($c, $v1, $v2) = @_;

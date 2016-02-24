@@ -587,7 +587,7 @@ sub divide_polys{
 
 sub get_singular_poly{
    my($name, $ring) = @_;
-   my $a = singular_get_var($name);
+   my @a = singular_get_var($name);
    return new Polynomial($a[0],$a[1], $ring);
 }
 
