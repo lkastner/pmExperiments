@@ -138,10 +138,10 @@ declare object T1 {
       my $cmd = "ring ".$ringName." = 0,(".join(",",$R->variables)."),dp;\n";
       $cmd .= "ideal ".$idealName." = ".join(",",@$gens).";\n";
       $cmd .= "list ".$t1Name." = T_1(".$idealName.",1);\n";
-      $cmd .= $t1Name.";\n";
+      # $cmd .= $t1Name.";\n";
       singular_eval($cmd);
 
-      print $cmd;
+      # print $cmd;
       $this->SINGULAR_T1 = $name;
    }
 
@@ -211,7 +211,7 @@ declare object T1 {
 sub monomials_of_deg {
    my($R, $vdegs, $deg) = @_;
    my $C = new Cone(INPUT_RAYS=>$vdegs);
-   $C->POINTED or die "Weight cone not pointed.";
+   $C->POINTED or warn "Weight cone not pointed.";
    my $eq = (-$deg | transpose(new Matrix($vdegs)));
    my $ineq = (zero_vector | unit_matrix($vdegs->rows()));
    my $P = new Polytope(EQUATIONS=> $eq, INEQUALITIES=>$ineq);
