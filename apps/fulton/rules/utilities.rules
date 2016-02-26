@@ -87,8 +87,8 @@ user_function find_nice_projection(Cone){
    if($C->DIM == $C->AMBIENT_DIM){
       return(unit_matrix($C->DIM), unit_matrix($C->DIM));
    } else {
-      my @HNF = hermite_normal_form($C->HILBERT_BASIS);
-      my $transform = dense($HNF[1]);
+      my $HNF = hermite_normal_form($C->HILBERT_BASIS);
+      my $transform = dense($HNF->companion);
       my $projection = unit_matrix($C->DIM) / zero_matrix($C->AMBIENT_DIM-$C->DIM, $C->DIM);
       $projection = $transform * $projection;
       return((new Matrix<Integer>($transform)), (new Matrix<Integer>($projection)));
