@@ -31,8 +31,15 @@ declare object T1 {
    property DIM : Integer;
 
    property VDIM : Integer;
+
+   method construct( Cone<Rational> ){
+      my($C) = $_[1];
+      my $I = $C->TORIC_IDEAL;
+      $I->GENERATORS;
+      return new T1(IDEAL=>$I, RING_DEGREES=>$C->HILBERT_BASIS);
+   }
    
-   rule T1_KBASE_DEGREES : T1_KBASE, RING_DEGREES, T1_NUMERATOR_DEGREES {
+   rule T1_KBASE_DEGREES : T1_KBASE, RING_DEGREES, T1_NUMERATOR_DEGREES, HOMOGENEOUS, IS_FINITE_DIMENSIONAL {
       my $vdegs = $this->RING_DEGREES;
       my $t1ambDegs = $this->T1_NUMERATOR_DEGREES;
       my $t1Kbase = $this->T1_KBASE;
@@ -41,9 +48,10 @@ declare object T1 {
          push @result, degree_of_vector($t1, $vdegs, $t1ambDegs);
       }
       $this->T1_KBASE_DEGREES = \@result;
-   } precondition : HOMOGENEOUS, IS_FINITE_DIMENSIONAL;
+   }
+   precondition : IS_FINITE_DIMENSIONAL, HOMOGENEOUS { $this->HOMOGENEOUS && $this->IS_FINITE_DIMENSIONAL};
 
-   rule T1_KBASE : SINGULAR_T1, T1_DENOMINATOR, IDEAL.RING {
+   rule T1_KBASE : SINGULAR_T1, T1_DENOMINATOR, IDEAL.RING, IS_FINITE_DIMENSIONAL {
       my $name = $this->SINGULAR_T1;
       my $R = $this->IDEAL->RING;
       my $t1Name = $name."_t1";
@@ -52,13 +60,14 @@ declare object T1 {
       $cmd .= "def ".$t1Kbase." = kbase(".$t1Name."[1]);\n";
       singular_eval($cmd);
       $this->T1_KBASE = transpose(get_singular_matrix($t1Kbase, $R));
-   } precondition : IS_FINITE_DIMENSIONAL;
+   }
+   precondition : IS_FINITE_DIMENSIONAL;
 
    rule IS_FINITE_DIMENSIONAL : DIM {
       $this->IS_FINITE_DIMENSIONAL = $this->DIM == 0;
    }
 
-   rule T1_DENOMINATOR_DEGREES : T1_NUMERATOR_DEGREES, RING_DEGREES, T1_DENOMINATOR {
+   rule T1_DENOMINATOR_DEGREES : T1_NUMERATOR_DEGREES, RING_DEGREES, T1_DENOMINATOR, HOMOGENEOUS {
       my $vdegs = $this->RING_DEGREES;
       my $t1ambDegs = $this->T1_NUMERATOR_DEGREES;
       my $t1Den = $this->T1_DENOMINATOR;
@@ -67,10 +76,11 @@ declare object T1 {
          push @result, degree_of_vector($t1, $vdegs, $t1ambDegs);
       }
       $this->T1_DENOMINATOR_DEGREES = \@result;
-   } precondition : HOMOGENEOUS;
+   }
+   precondition : HOMOGENEOUS;
 
    
-   rule T1_NUMERATOR_DEGREES : B1, IDEAL_DEGREES, RING_DEGREES{
+   rule T1_NUMERATOR_DEGREES : B1, IDEAL_DEGREES, RING_DEGREES, HOMOGENEOUS {
       my $B1 = $this->B1;
       my $homDegs = -$this->IDEAL_DEGREES;
       my $vdegs = $this->RING_DEGREES;
@@ -79,7 +89,8 @@ declare object T1 {
          push @result, degree_of_vector($b1, $vdegs, $homDegs);
       }
       $this->T1_NUMERATOR_DEGREES = \@result;
-   } precondition : HOMOGENEOUS;
+   }
+   precondition : HOMOGENEOUS;
 
    rule DIM, VDIM : SINGULAR_T1, T1_DENOMINATOR {
       my $name = $this->SINGULAR_T1;
@@ -106,7 +117,7 @@ declare object T1 {
       $this->HOMOGENEOUS = 1;
    }
 
-   rule A_DEGREES : A, IDEAL_DEGREES, RING_DEGREES {
+   rule A_DEGREES : A, IDEAL_DEGREES, RING_DEGREES, HOMOGENEOUS {
       my $A = $this->A;
       my $ideg = $this->IDEAL_DEGREES;
       my $vdeg = $this->RING_DEGREES;
@@ -115,9 +126,10 @@ declare object T1 {
          push @result, degree_of_vector($a, $vdeg, $ideg);
       }
       $this->A_DEGREES = \@result;
-   } precondition : HOMOGENEOUS;
+   }
+   precondition : HOMOGENEOUS;
 
-   rule IDEAL_DEGREES : IDEAL.GENERATORS, RING_DEGREES {
+   rule IDEAL_DEGREES : IDEAL.GENERATORS, RING_DEGREES, HOMOGENEOUS {
       my $gens = $this->IDEAL->GENERATORS;
       my $vdegs = $this->RING_DEGREES;
       my @result = ();
@@ -125,7 +137,8 @@ declare object T1 {
          push @result, degree_of_xpoly($gen, $vdegs);
       }
       $this->IDEAL_DEGREES = \@result;
-   } precondition : HOMOGENEOUS;
+   }
+   precondition : HOMOGENEOUS;
 
    rule SINGULAR_T1 : IDEAL.RING, IDEAL.GENERATORS {
       my $R = $this->IDEAL->RING;
@@ -170,22 +183,11 @@ declare object T1 {
       my $t1Name = $name."_t1";
       my $cmd = "setring(".$name."_ring);\n";
       my $vdegs = $t1Object->RING_DEGREES;
+      my $C = new Cone(INPUT_RAYS=>$vdegs);
+      $C->POINTED or warn "Weight cone is not pointed.";
       my $t1Gens = $t1Object->T1_NUMERATOR_DEGREES;
       my $n = $t1Gens->rows();
-      my $i = 0;
-      my @kGens = ();
-      foreach my $gen (@$t1Gens) {
-         my $diff = $deg - $gen;
-         my @monomials = monomials_of_deg($R, $vdegs, $diff);
-         # print "Monomials computed.\n";
-         foreach my $mon (@monomials) {
-            my $v = new Vector<Polynomial>($n);
-            $v->[$i] = $mon;
-            push @kGens, $v;
-            # print $v,"\n";
-         }
-         $i++;
-      }
+      my @kGens = get_gens_of_module($deg, $t1Gens, $vdegs, $R);
       # print join("\n", @kGens),"\n--------------\n";
       my $kGens = new Matrix<Polynomial>(\@kGens);
       my $singkGens = get_random_string();
@@ -208,14 +210,33 @@ declare object T1 {
    }
 }
 
+sub get_gens_of_module {
+   my($deg, $freeModuleDegs, $vdegs, $R) = @_;
+   my $n = $freeModuleDegs->rows();
+   my $i = 0;
+   my @kGens = ();
+   foreach my $gen (@$freeModuleDegs) {
+      my $diff = $deg - $gen;
+      my @monomials = monomials_of_deg($R, $vdegs, $diff);
+      # print "Monomials computed.\n";
+      foreach my $mon (@monomials) {
+         my $v = new Vector<Polynomial>($n);
+         $v->[$i] = $mon;
+         push @kGens, $v;
+         # print $v,"\n";
+      }
+      $i++;
+   }
+   return @kGens;
+}
+
 sub monomials_of_deg {
    my($R, $vdegs, $deg) = @_;
-   my $C = new Cone(INPUT_RAYS=>$vdegs);
-   $C->POINTED or warn "Weight cone not pointed.";
    my $eq = (-$deg | transpose(new Matrix($vdegs)));
    my $ineq = (zero_vector | unit_matrix($vdegs->rows()));
    my $P = new Polytope(EQUATIONS=> $eq, INEQUALITIES=>$ineq);
-   my $exps = $P->LATTICE_POINTS->minor(All, ~[0]);
+   my $LP = $P->LATTICE_POINTS_GENERATORS;
+   my $exps = $LP->[0]->minor(All, ~[0]);
    my @result = ();
    foreach my $exp (@$exps) {
       push @result, new Monomial((new Vector<Int>($exp)), $R);
