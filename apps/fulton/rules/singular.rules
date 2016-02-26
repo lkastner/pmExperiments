@@ -7,7 +7,7 @@ object TDivisor {
 }
 
 
-object NormalToricVariety {
+object_specialization NormalToricVariety::AffineNormalToricVariety {
    
    property SINGULAR_TORIC_RING : String;
 
