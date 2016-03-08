@@ -1,0 +1,141 @@
+
+user_function select_point(Matrix, Map<Vector<Int>, Integer>, Vector){
+   my($selected, $free, $pt) = @_;
+   $free->{$pt} == 0 or die "Point is not selectable.";
+   my $B = new Map<Vector<Int>, Integer>($free);
+   $B->{$pt} = 1;
+   foreach my $s (@$selected){
+      my $third = -($s + $pt);
+      $third = new Vector<Int>(map($_ % 3, @$third));
+      $B->{$third}++;
+   }
+   my $A = new Matrix<Int>($selected / $pt);
+   return ($A, $B);
+}
+
+user_function get_initial_set( $ ){
+   my($n) = @_;
+   my $result = get_initial_matrix($n);
+   my $B = new Map<Vector<Int>, Integer>();
+   foreach my $r (@$result){
+      $B->{$r} = 0;
+   }
+   return $B;
+}
+
+sub get_initial_matrix{
+   my($n) = @_;
+   $n > 0 or die "You will fail. Lol.";
+   if($n == 1) {
+      return new Matrix<Int>([[0],[1],[2]]);
+   }
+   my $init = get_initial_matrix($n-1);
+   my $v = ones_vector<Int>($init->rows);
+   my $result = new Matrix<Int>($init | (0*$v));
+   $result /= $init | $v;
+   $result /= $init | (2*$v);
+   return new Matrix<Int>($result);
+}
+
+user_function play_set_mc( $ , $ ){
+   my($dim, $tries) = @_;
+   my $A = new Matrix<Int>(1, $dim);
+   return finish_game_mc($A, $tries);
+}
+
+user_function finish_game_mc(Matrix, $ ){
+   my($selected, $tries) = @_;
+   my $dim = $selected->cols;
+   my $B = get_initial_set($dim);
+   print "Init done.\n";
+   my $A = new Matrix<Int>(0, $dim);
+   my $j = 0;
+   foreach my $s (@$selected){
+      print $j,"\n";
+      ($A, $B) = select_point($A, $B, $s);
+      $j++;
+   }
+   print "Playing done.\n";
+   while(get_free_pts($B) > 0){
+      my $pt = find_best_move_mc($A, $B, $tries);
+      print $pt," is best move\n";
+      ($A, $B) = select_point($A, $B, $pt);
+   }
+   return $A;
+}
+
+sub get_free_pts{
+   my($selected) = @_;
+   my @keys = keys %$selected;
+   return grep{
+      $selected->{$_} == 0
+   }@keys;
+}
+
+sub find_best_move_mc{
+   my($selected, $free, $tries) = @_;
+   my $currentBest = 0;
+   my $result = 0;
+   my @fp = get_free_pts($free);
+   for my $pt (@fp){
+      print $pt,"\n";
+      # print $pt->type->full_name,"Selecting pt.\n";
+      my($A, $B) = select_point($selected, $free, $pt);
+      my $test = monte_carlo_evaluate($A, $B, $tries);
+      print "Eval is: ", $test,"\n";
+      if($test > $currentBest){
+         $currentBest = $test;
+         $result = $pt;
+      }
+   }
+   return $result;
+}
+
+sub monte_carlo_evaluate{
+   my($selected, $free, $tries) = @_;
+   my $result = 0;
+   for(my $i=0; $i<$tries; $i++){
+      my $test = finish_randomly($selected, $free);
+      $result = max($result, $test->rows);
+      print $i," ",$test->rows,"\n";
+   }
+   return $result;
+}
+
+sub finish_randomly{
+   my($selected, $free) = @_;
+   my $A = new Matrix<Int>($selected);
+   my $B = new Map<Vector<Int>, Integer>($free);
+   # print $A->type->full_name," - ";
+   # print $B->type->full_name,"\n";
+   my @fp = get_free_pts($B);
+   while(@fp > 0){
+      my $index = floor(rand(@fp));
+      my $pt = $fp[$index];
+      # print "pt is: ",$pt,"\n\n";
+      ($A, $B) = select_point($A, $B, $pt);
+      @fp = grep($B->{$_}==0, @fp);
+      # print "Free are:\n",$B,"\nselected are:\n",$A,"\n";
+   }
+   return $A;
+}
+
+sub are_collinear{
+   my($a, $b, $c) = @_;
+   my $test = $a + $b + $c;
+   $test = new Vector(map($_ % 3, @$test));
+   return $test == zero_vector($test->dim);
+}
+
+sub test {
+   my $a = new Map<Vector<Int>, Integer>();
+   print "Before: ",$a,"\n";
+   test1($a);
+   print "After: ",$a,"\n";
+}
+
+sub test1 {
+   my($a) = @_;
+   my $v = new Vector<Int>(1,2,3);
+   $a->{$v} = 1;
+}

@@ -1,3 +1,7 @@
+INCLUDE
+   set.rules
+
+
 object Cone<Rational>{
    
    property PRIMITIVE_RAYS : Matrix<Int>;
