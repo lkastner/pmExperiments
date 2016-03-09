@@ -34,7 +34,9 @@ namespace {
 
 Matrix<int> get_init_matrix(int dim);
 Vector<int> get_third_on_line(Vector<int> a, Vector<int> b);
-Matrix<int> finish_set(Matrix<int> selected, int tries, bool add);
+Matrix<int> finish_set_monte_carlo(int dim, int tries, bool add);
+Matrix<int> finish_set_n_moves(int dim, int tries, bool add, int n, int d);
+Matrix<int> finish_given_set(Matrix<int> selected, int tries, bool add);
 
 /////////////////////////////////////////////////
 // Classes
@@ -42,7 +44,7 @@ Matrix<int> finish_set(Matrix<int> selected, int tries, bool add);
 class SetGame{
 private:
    int dim;
-   Map<Vector<int>, Integer> occupation;
+   Map<Vector<int>, int> occupation;
    Matrix<int> possibles, selected;
    int run_monte_carlo_try(Matrix<int> selected);
 
@@ -68,7 +70,7 @@ public:
    void init() {
       possibles = get_init_matrix(dim);
       selected = Matrix<int>(0, dim);
-      occupation = Map<Vector<int>, Integer>();
+      occupation = Map<Vector<int>, int>();
       for(Entire<Rows<Matrix<int> > >::const_iterator g = entire(rows(possibles)); !g.at_end(); g++) {
          occupation[*g] = 0;
       }
@@ -88,11 +90,54 @@ public:
       return true;
    }
 
+   int get_min_lines(){
+      int result = 10000000;
+      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
+         if(pt->second != -1){
+            result = std::min(result, pt->second);
+         }
+      }
+      return result;
+   }
+
+   int get_deviants(int minlines){
+      int result = 0;
+      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
+         if(pt->second != -1){
+            if(pt->second != minlines){
+               result++;
+            }
+         }
+      }
+      return result;
+   }
+
+   int evaluate_board(){
+      // return selected.rows();
+      int minlines = get_min_lines();
+      int deviants = get_deviants(minlines);
+      return dim*(minlines - 1) + 1000*selected.rows() - deviants;
+   }
+
+   int eval_n_random_moves(int n, int desired){
+      int i = 0, presize = selected.rows(), result;
+      while( (i < n) && (possibles.rows() > 0)){
+         random_move();
+         i++;
+      }
+      result = -get_deviants(desired);
+      while(selected.rows() > presize){
+         undo_last_no_update();
+      }
+      update_possibles();
+      return result;
+   }
+
    int monte_carlo_try() {
       int presize = selected.rows();
       bool r = finish_monte_carlo();
       if(!r){ return r; }
-      int result = selected.rows();
+      int result = evaluate_board();
       while(selected.rows() > presize){
          undo_last_no_update();
       }
@@ -142,7 +187,7 @@ public:
 
    void update_possibles(){
       possibles = Matrix<int>(0, dim);
-      for(Entire<Map<Vector<int>, Integer> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
+      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
          if(pt->second == 0){
             possibles /= pt->first;
          }
@@ -150,37 +195,95 @@ public:
    }
 
    void print(){
-      cout << "Possibles: " << possibles.rows() << " Selected: " << selected.rows() << endl;
+      cout << "Possibles: " << possibles.rows() << " Selected: " << selected.rows();
+      if(possibles.rows() == 0){
+         int minlines = get_min_lines();
+         int deviants = get_deviants(minlines);
+         cout << " minlines: " << minlines << " deviants: " << deviants;
+      }
+      cout << endl;
    }
 
    int monte_carlo_evaluate(Vector<int> pt, int tries){
       move(pt);
       int i;
-      int result = 0;
+      int result = INT_MIN;
       for(i=0; i<tries; i++){
          // cout << "Try: " << i << endl;
          // print();
          result = std::max(result, monte_carlo_try());
+         // result += monte_carlo_try();
          // print();
       }
       undo_last();
       return result;
    }
 
-   Vector<int> find_best_move(int tries){
+   Vector<int> find_best_move_monte_carlo(int tries){
       Matrix<int> pts(possibles);
-      Vector<int> currentBest;
-      int currentBestVal = 0, test, i=0, total = pts.rows();
+      Matrix<int> currentBest(0,dim);
+      int currentBestVal = INT_MIN, test, i=0, total = pts.rows();
       for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(pts)); !pt.at_end(); pt++) {
          cout << "Point no. " << i << " of " << total;
          test = monte_carlo_evaluate(*pt, tries);
-         cout << " gives " << test << endl;
+         cout << " gives " << test << " - ";
          if(test > currentBestVal){
-            currentBest = *pt;
+            cout << " WINNER!  ";
+            currentBestVal = test;
+            currentBest = Matrix<int>(0,dim);
+            currentBest /= *pt;
          }
+         if(test == currentBestVal){
+            currentBest /= *pt;
+         }
+         cout << std::flush;
          i++;
       }
-      return currentBest;
+      cout << "Winning value is: " << currentBestVal << endl;
+      i = rand() % currentBest.rows();
+      cout << "Selecting index " << i << endl;
+      return currentBest[i];
+   }
+   
+   int n_moves_evaluate(Vector<int> pt, int tries, int n, int d){
+      move(pt);
+      int i;
+      int result = INT_MIN;
+      for(i=0; i<tries; i++){
+         // cout << "Try: " << i << endl;
+         // print();
+         result = std::max(result, eval_n_random_moves(n, d));
+         // result += monte_carlo_try();
+         // print();
+      }
+      undo_last();
+      return result;
+   }
+   
+   Vector<int> find_best_move_n_moves(int tries, int n, int d){
+      Matrix<int> pts(possibles);
+      Matrix<int> currentBest(0,dim);
+      int currentBestVal = INT_MIN, test, i=0, total = pts.rows();
+      for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(pts)); !pt.at_end(); pt++) {
+         cout << "Point no. " << i << " of " << total;
+         test = n_moves_evaluate(*pt, tries, n, d);
+         cout << " gives " << test << " - ";
+         if(test > currentBestVal){
+            cout << " WINNER!  ";
+            currentBestVal = test;
+            currentBest = Matrix<int>(0,dim);
+            currentBest /= *pt;
+         }
+         if(test == currentBestVal){
+            currentBest /= *pt;
+         }
+         cout << std::flush;
+         i++;
+      }
+      cout << "Winning value is: " << currentBestVal << endl;
+      i = rand() % currentBest.rows();
+      cout << "Selecting index " << i << endl;
+      return currentBest[i];
    }
 
    void finish_game_monte_carlo(int tries, bool add){
@@ -188,11 +291,25 @@ public:
       int additional = 0;
       while(possibles.rows() > 0){
          print();
-         next = find_best_move(tries + additional);
-         print();
+         next = find_best_move_monte_carlo(tries + additional);
+         // print();
          additional += add ? 1 : 0;
          move(next);
       }
+      print();
+   }
+   
+   void finish_game_n_moves(int tries, bool add, int n, int d){
+      Vector<int> next;
+      int additional = 0;
+      while(possibles.rows() > 0){
+         print();
+         next = find_best_move_n_moves(tries + additional, n, d);
+         // print();
+         additional += add ? 1 : 0;
+         move(next);
+      }
+      print();
    }
 };
 
@@ -229,9 +346,37 @@ int run_monte_carlo_try(Matrix<int> selected){
    return result;
 }
 
-Matrix<int> finish_set(Matrix<int> selected, int tries, bool add){
+Matrix<int> finish_given_set(Matrix<int> selected, int tries, bool add){
    SetGame set = SetGame(selected);
    set.finish_game_monte_carlo(tries, add);
+   return set.get_selected();
+}
+
+Matrix<int> finish_set_monte_carlo(int dim, int tries, bool add){
+   SetGame set = SetGame(dim);
+   int i;
+   Vector<int> v = zero_vector<int>(dim);
+   set.move_no_update(v);
+   for(i=0; i<dim; i++){
+      v = unit_vector<int>(dim, i);
+      set.move_no_update(v);
+   }
+   set.update_possibles();
+   set.finish_game_monte_carlo(tries, add);
+   return set.get_selected();
+}
+
+Matrix<int> finish_set_n_moves(int dim, int tries, bool add, int n, int d){
+   SetGame set = SetGame(dim);
+   int i;
+   Vector<int> v = zero_vector<int>(dim);
+   set.move_no_update(v);
+   for(i=0; i<dim; i++){
+      v = unit_vector<int>(dim, i);
+      set.move_no_update(v);
+   }
+   set.update_possibles();
+   set.finish_game_n_moves(tries, add, n, d);
    return set.get_selected();
 }
 
@@ -244,7 +389,11 @@ Function4perl(&get_third_on_line, "get_third_on_line");
 
 Function4perl(&run_monte_carlo_try, "run_monte_carlo_try");
 
-Function4perl(&finish_set, "finish_set");
+Function4perl(&finish_set_monte_carlo, "finish_set_monte_carlo");
+
+Function4perl(&finish_set_n_moves, "finish_set_n_moves");
+
+Function4perl(&finish_given_set, "finish_given_set");
 
 } // namespace polymake
 } // namespace polytope
