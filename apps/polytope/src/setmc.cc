@@ -34,9 +34,25 @@ namespace {
 
 Matrix<int> get_init_matrix(int dim);
 Vector<int> get_third_on_line(Vector<int> a, Vector<int> b);
-Matrix<int> finish_set_monte_carlo(int dim, int tries, bool add);
+Matrix<int> finish_set_monte_carlo(int dim, int tries, perl::OptionSet options);
 Matrix<int> finish_set_n_moves(int dim, int tries, bool add, int n, int d);
-Matrix<int> finish_given_set(Matrix<int> selected, int tries, bool add);
+Matrix<int> finish_given_set(Matrix<int> selected, int tries, perl::OptionSet options);
+int compare_lex(Vector<int> a, Vector<int> b);
+
+
+int compare_lex(Vector<int> a, Vector<int> b){
+   Vector<int> diff = a - b;
+   int i;
+   for(i = 0; i<diff.dim(); i++){
+      if(diff[i] < 0){
+         return 1;
+      }
+      if(diff[i] > 0){
+         return -1;
+      }
+   }
+   return 0;
+}
 
 /////////////////////////////////////////////////
 // Classes
@@ -45,17 +61,19 @@ class SetGame{
 private:
    int dim;
    Map<Vector<int>, int> occupation;
-   Matrix<int> possibles, selected;
-   int run_monte_carlo_try(Matrix<int> selected);
+   Matrix<int> possibles, selected, order;
+   Vector<int> run_monte_carlo_try(Matrix<int> selected);
 
 public:
-   SetGame(int n){
+   SetGame(int n, Matrix<int> o){
       dim = n;
+      order = o;
       init();
    }
 
-   SetGame(Matrix<int> preselected){
+   SetGame(Matrix<int> preselected, Matrix<int> o){
       dim = preselected.cols();
+      order = o;
       init();
       for(Entire<Rows<Matrix<int> > >::const_iterator s = entire(rows(preselected)); !s.at_end(); s++) {
          move_no_update(*s);
@@ -112,11 +130,13 @@ public:
       return result;
    }
 
-   int evaluate_board(){
+   Vector<int> evaluate_board(){
       // return selected.rows();
-      int minlines = get_min_lines();
-      int deviants = get_deviants(minlines);
-      return dim*(minlines - 1) + 1000*selected.rows() - deviants;
+      Vector<int> result(3);
+      result[0] = selected.rows();
+      result[1] = get_min_lines();
+      result[2] = get_deviants(result[1]);
+      return result;
    }
 
    int eval_n_random_moves(int n, int desired){
@@ -133,11 +153,11 @@ public:
       return result;
    }
 
-   int monte_carlo_try() {
+   Vector<int> monte_carlo_try() {
       int presize = selected.rows();
       bool r = finish_monte_carlo();
-      if(!r){ return r; }
-      int result = evaluate_board();
+      if(!r){ cout << "Something went wrong while playing!" << endl; }
+      Vector<int> result = evaluate_board();
       while(selected.rows() > presize){
          undo_last_no_update();
       }
@@ -204,14 +224,18 @@ public:
       cout << endl;
    }
 
-   int monte_carlo_evaluate(Vector<int> pt, int tries){
+   Vector<int> monte_carlo_evaluate(Vector<int> pt, int tries){
       move(pt);
       int i;
-      int result = INT_MIN;
+      Vector<int> result = monte_carlo_try();
+      Vector<int> test;
       for(i=0; i<tries; i++){
          // cout << "Try: " << i << endl;
          // print();
-         result = std::max(result, monte_carlo_try());
+         test = monte_carlo_try();
+         if(compare_lex(order * result, order * test) == 1){
+            result = test;
+         }
          // result += monte_carlo_try();
          // print();
       }
@@ -222,18 +246,19 @@ public:
    Vector<int> find_best_move_monte_carlo(int tries){
       Matrix<int> pts(possibles);
       Matrix<int> currentBest(0,dim);
-      int currentBestVal = INT_MIN, test, i=0, total = pts.rows();
+      Vector<int> currentBestVal = monte_carlo_try(), test;
+      int i=0, total = pts.rows();
       for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(pts)); !pt.at_end(); pt++) {
          cout << "Point no. " << i << " of " << total;
          test = monte_carlo_evaluate(*pt, tries);
-         cout << " gives " << test << " - ";
-         if(test > currentBestVal){
+         cout << " gives " << test[0] << " - ";
+         if(compare_lex(order*currentBestVal, order*test) == 1){
             cout << " WINNER!  ";
             currentBestVal = test;
             currentBest = Matrix<int>(0,dim);
             currentBest /= *pt;
          }
-         if(test == currentBestVal){
+         if(compare_lex(order*currentBestVal, order*test) == 0){
             currentBest /= *pt;
          }
          cout << std::flush;
@@ -338,23 +363,27 @@ Vector<int> get_third_on_line(Vector<int> a, Vector<int> b){
    return result;
 }
    
-int run_monte_carlo_try(Matrix<int> selected){
-   SetGame set = SetGame(selected);
+Vector<int> run_monte_carlo_try(Matrix<int> selected){
+   SetGame set = SetGame(selected, unit_matrix<int>(3));
    set.print();
-   int result = set.monte_carlo_try();
+   Vector<int> result = set.monte_carlo_try();
    set.print();
    return result;
 }
 
-Matrix<int> finish_given_set(Matrix<int> selected, int tries, bool add){
-   SetGame set = SetGame(selected);
+Matrix<int> finish_given_set(Matrix<int> selected, int tries, perl::OptionSet options){
+   bool add = options["add"];
+   Matrix<int> order = options["order"];
+   SetGame set = SetGame(selected, order);
    set.finish_game_monte_carlo(tries, add);
    return set.get_selected();
 }
 
-Matrix<int> finish_set_monte_carlo(int dim, int tries, bool add){
-   SetGame set = SetGame(dim);
+Matrix<int> finish_set_monte_carlo(int dim, int tries, perl::OptionSet options){
    int i;
+   bool add = options["add"];
+   Matrix<int> order = options["order"];
+   SetGame set = SetGame(dim, order);
    Vector<int> v = zero_vector<int>(dim);
    set.move_no_update(v);
    for(i=0; i<dim; i++){
@@ -367,7 +396,7 @@ Matrix<int> finish_set_monte_carlo(int dim, int tries, bool add){
 }
 
 Matrix<int> finish_set_n_moves(int dim, int tries, bool add, int n, int d){
-   SetGame set = SetGame(dim);
+   SetGame set = SetGame(dim, unit_matrix<int>(3));
    int i;
    Vector<int> v = zero_vector<int>(dim);
    set.move_no_update(v);
@@ -389,11 +418,11 @@ Function4perl(&get_third_on_line, "get_third_on_line");
 
 Function4perl(&run_monte_carlo_try, "run_monte_carlo_try");
 
-Function4perl(&finish_set_monte_carlo, "finish_set_monte_carlo");
+Function4perl(&finish_set_monte_carlo, "finish_set_monte_carlo( $ , $ , {options=>1, order=>unit_matrix<Int>(3)})");
 
 Function4perl(&finish_set_n_moves, "finish_set_n_moves");
 
-Function4perl(&finish_given_set, "finish_given_set");
+Function4perl(&finish_given_set, "finish_given_set( Matrix<Int> , $ , {options=>1, order=>unit_matrix<Int>(3)})");
 
 } // namespace polymake
 } // namespace polytope
