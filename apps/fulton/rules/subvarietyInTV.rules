@@ -1,0 +1,185 @@
+#  Copyright (c) 2012
+#  by authors as mentioned on:
+#  https://github.com/lkastner/polymake_toric/wiki/Authors
+#  
+#  Project home:
+#  https://github.com/lkastner/polymake_toric
+#
+#  For licensing we cite the original Polymake code:
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the
+#  Free Software Foundation; either version 2, or (at your option) any
+#  later version: http://www.gnu.org/licenses/gpl.txt.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+
+object SubvarietyInTV {
+
+   rule NEWTON_POLYTOPE : EQUATIONS {
+      my $eq = $this->EQUATIONS->GENERATORS->[0];
+      $this->NEWTON_POLYTOPE = newton($eq);
+   }
+   precondition : HYPERSURFACE;
+
+   rule TROPICAL_FAN : EQUATIONS {
+      my $eq = $this->EQUATIONS->GENERATORS->[0];
+      $this->TROPICAL_FAN = gfan_tropicalhypersurface($eq);
+   }
+   precondition : HYPERSURFACE;
+
+}
+
+object NormalToricVariety {
+   
+   property SUBVARIETY : SubvarietyInTV : multiple;
+   
+
+	rule SUBVARIETY.RELEVANT_CONES : SUBVARIETY.TROPICAL_FAN, RAYS, MAXIMAL_CONES{
+		# The idea of this method comes from the Sturmfels Maclagan book about tropical varieties.
+		# For any subvariety of the torus one can compute which cones are really necessary for covering
+		# the closure of this subvariety in the toric variety by intersecting the tropical variety
+		# with the fan of the ambient toric variety.
+		#
+      # Currently this is very slow. Maybe it can be sped up be the following:
+      # For each maximal cone in the tropical variety, compute every cone that is intersected non-trivially,
+      # then compute the relevant parts.
+      my $trop = $this->SUBVARIETY->TROPICAL_FAN;
+		my @interesting_cones = map($trop->cone($_),0..($trop->N_MAXIMAL_CONES-1));
+		my @relevant = ();
+		my $tvmc = $this->MAXIMAL_CONES;
+		my $tvr = new Matrix<Rational>($this->RAYS);
+		foreach my $C (@$tvmc) {
+			#print $C;
+			my $m = $tvr->minor($C,All);
+			my $A = new Cone<Rational>(INPUT_RAYS=>$m);
+			foreach my $t (@interesting_cones){
+				# We will check, if A is intersected in its relative interior.
+				my $tA = intersection($t, $A);
+            # FIXME does this make sense ? (rel_int_point will be undef and cause problems otherwise ...)
+				next if($tA->DIM == 0);
+				# Choose an arbitrary point of the relative interior of the intersection.
+				my $interior_point = $tA->REL_INT_POINT;
+				my $fac = $A->FACETS;
+				# We check on how many facets the relative interior point of the intersection lies.
+				my @equations = grep($_*$interior_point == 0, @$fac);
+				my $eq_mat = new Matrix<Rational>(@equations);
+				my $test = $eq_mat->rows;
+				if($test == 0){
+					# If the point is on zero facets, it must be in the relative interior.
+					push @relevant, $C;
+				} else {
+					# Else the point is in a subcone of A.
+					# We choose the rays of A that satisfy the same equations.
+					# Collecting them yields a face of A which is intersected in the relative interior.
+					my $zero = zero_vector<Rational>($test);
+					my @good_rays = grep(($eq_mat * $tvr->[$_] == $zero), @$C);
+					push @relevant, new Set<Integer>(@good_rays);
+				}
+			}
+			print "done\n";	
+		}
+      my @uniques = ();
+      foreach my $c (@relevant){
+         my $identicals = grep($_ == $c, @uniques);
+         $identicals == 0?(push @uniques, $c):0; #(print $c,"\n");
+      }
+		$this->SUBVARIETY->RELEVANT_CONES = check_fan($tvr, new Array< Set<Integer>>(@uniques));
+	}
+
+	rule SUBVARIETY.LOCAL_EQUATIONS : CONES, RAYS, SUBVARIETY.NEWTON_POLYTOPE{
+		$newton = $this->SUBVARIETY->NEWTON_POLYTOPE;
+		$cones = $this->CONES;
+		$rays = $this->RAYS;
+		foreach my $d (@$cones){
+			foreach my $c (@$d){
+				
+			}
+		}
+	}
+}
+
+
+user_function chow_quotient(Polynomial){
+   my ($g) = @_;
+   print "Defining Polynomial:\n$g\n\n";
+   my $degs = dense($g->monomials_as_matrix);
+   print "Exponents:\n$degs\n";
+   my $coeffs = $g->coefficients_as_vector;
+   print "Coefficients:\n$coeffs\n\n";
+   my @r = @$degs;
+   my $c = $r[0];
+   #print $c;
+   my @diffmatrows = map($_-$c, @r);
+   my $diffmat = new Matrix<Integer>(@diffmatrows);
+   print "Pairwise differences:\n$diffmat\n";
+   my $D = null_space($diffmat);
+   print "D:\n$D\n";
+   my $B = transpose(null_space($D));
+   print "B:\n$B\n";
+   # Test for exactness:
+   # print $D*$B;
+   my $deg_g = $D*$c;
+   # Test for homogenoucity:
+   # print "degree of g:\n$deg_g\n\n";
+   # print $D*transpose(-$degs);
+   my $dm1 = new Polytope<Rational>(EQUATIONS=>($deg_g | $D),INEQUALITIES=>(ones_vector(1)|zero_vector($D->cols)));
+   my $a = $dm1->DIM;
+   # Checking whether dimension is correct:
+   # print "Dim:\n$a\n";
+   my $zero = zero_vector($B->cols);
+   my @fm = map(((ones_vector(1) | (-1)*(new Vector<Rational>($_)))/($zero | transpose(new Matrix<Rational>($B)))), @$degs);
+   @fm = map((new Polytope<Rational>(POINTS=>$_)), @fm);
+   my $good_points = $dm1;
+   foreach my $P (@fm){
+      $good_points = intersection($good_points, $P);
+   }
+   my $good_vert = $good_points->VERTICES->[0];
+   # print $good_vert;
+   my $par_vert = (cube($B->cols,0)->VERTICES)*($good_vert / ($zero |transpose(new Matrix<Rational>($B))));
+   # print $par_vert;
+   my $lat = (new Polytope<Rational>(POINTS=>$par_vert))->VERTICES;
+   # print "\nOk lattice points:\n";
+   my $p = -$lat->[0]->slice(1);
+   # print "P: $p\n";
+   my $test = new Matrix<Rational>(map($_-$p,@$degs));
+   # print $test;
+   # print $D*transpose($test);
+   my @preim = map((new Polytope<Rational>(EQUATIONS=>(($p-$_) | new Matrix<Rational>($B)),INEQUALITIES=>(ones_vector(1)|zero_vector($B->cols))))->VERTICES, @$degs);
+   # print @preim;
+   my $new_degs = new Matrix<Int>(map($_->[0]->slice(1), @preim));
+   # Building ring for output equation:
+   my $nvars = $new_degs->cols;
+   my $R = new Ring($nvars);
+   print "Ring built. Variables are:\n";
+   print $R->variables,"\n";
+   my $g_tilda = new Polynomial($new_degs,$coeffs,$R);
+   print "g_tilda: $g_tilda\n";
+   my $ambient_fan = cocoref_topcom(new Matrix<Integer>($B));
+   my $ambient_tv = new NormalToricVariety($ambient_fan);
+   my $id = new Ideal(GENERATORS=>[$g_tilda]);
+   $ambient_tv->SUBVARIETY(EQUATIONS=>$id, HYPERSURFACE=>True);
+   return $ambient_tv;
+   #my $hs = $ambient_tv->add("HYPERSURFACE", EQUATION=>$g_tilda);
+   #print "Equation: ",$hs->EQUATION,"\n";
+   #return $ambient_tv;
+}
+
+# This only works for bounded polytopes. But we do not check this.
+user_function move_inside(Polytope<Rational>, Polytope<Rational>){
+   my ($p, $q) = @_;
+   my $m = $p->VERTICES;
+   my $c = $m->[0];
+   my $lat = $q->LATTICE_POINTS;
+   foreach my $l (@$lat){
+      my $new_vert = new Matrix(map($_-$c+$l,@$m));
+      my $test = new Polytope(POINTS=>$new_vert);
+      if(included_polyhedra($test,$q)){
+         return $l-$c;
+      }
+   }
+   return False;
+}

@@ -1,79 +1,86 @@
+#  Copyright (c) 2012
+#  by authors as mentioned on:
+#  https://github.com/lkastner/polymake_toric/wiki/Authors
+#  
+#  Project home:
+#  https://github.com/lkastner/polymake_toric
+#
+#  For licensing we cite the original Polymake code:
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the
+#  Free Software Foundation; either version 2, or (at your option) any
+#  later version: http://www.gnu.org/licenses/gpl.txt.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+
 INCLUDE
-   set.rules
+   deformations.rules
 
+object Polytope<Rational> {
 
-object Cone<Rational>{
-   
-   property PRIMITIVE_RAYS : Matrix<Int>;
+   # A Minkowski summand of the polytope having the same normal fan, but being a hopefully
+   # small lattice polytope.
+	property NICE_MINKOWSKI_SUMMAND : Polytope;
 
-   rule PRIMITIVE_RAYS : RAYS {
-      my $rays = new Matrix<Rational>($this->RAYS);
-      $this->PRIMITIVE_RAYS = new Matrix<Int>(map(primitive($_), @$rays));
-   }
+   # The cone of unbounded directions.
+	property TAILCONE : Polytope;
+
+	rule NICE_MINKOWSKI_SUMMAND : MINKOWSKI_CONE, GRAPH {
+		my $minkp = new Matrix<Rational>($this->MINKOWSKI_CONE->EQUATIONS);
+		my $eqs = new Matrix<Rational>($this->GRAPH->EDGE_DIRECTIONS);
+		my $count = 0;
+		my @factors = ();
+		foreach my $e (@$eqs){
+			my $factor = new Rational(1);
+   			my $test = primitive(eliminate_denominators($e));
+				for(my $i = 0; $i < $e->dim; $i++){
+					if($e->[$i] != 0){
+						$factor = (new Rational($test->[$i]))/(new Rational($e->[$i]));
+						last;
+					}
+				}
+			#print $e, " ", $test, " factor: ", $factor, "\n";
+			$minkp->col($count) *= $factor;
+			push @factors, $factor;
+			$count++;
+		}
+		$eqs = primitive(eliminate_denominators($eqs));
+		my $eq = new Matrix<Rational>(zero_vector($minkp->rows) | $minkp);
+		my $ineq = new Matrix<Rational>(-ones_vector($minkp->cols) | dense(unit_matrix($minkp->cols)));
+		#print $eq,"\n";
+		#print $ineq,"\n";
+		my $newMink = new Polytope<Rational>(EQUATIONS=>$eq, INEQUALITIES=>$ineq);
+		my $newMinkVertices = $newMink->VERTICES;
+		my $q;
+		foreach my $v (@$newMinkVertices){
+			if ($v->[0]==1){
+				$q = new Vector<Rational>($v->slice(1));
+				last;
+			}
+		}
+		$q = primitive(eliminate_denominators($q));
+		$q = new Vector<Rational>($q);
+		#print $q,"\n";
+		my $i = 0;
+		foreach my $f (@factors){
+			$q->[$i] *= $f;
+			$i++;
+		}
+		$this->NICE_MINKOWSKI_SUMMAND = $this->MINKOWSKI_CONE_POINT($q);
+	
+	}
+
+	rule TAILCONE : FACETS, AFFINE_HULL {
+		my $ineq = $this->FACETS;
+		my $eq = $this->AFFINE_HULL;
+		# print $ineq;
+		my $newineq = (new Vector<Rational>($ineq->rows)) | $ineq->minor(All,~[0]);
+		$this->TAILCONE = new Polytope<Rational>(INEQUALITIES=>$newineq);	
+	}
 
 }
-
-object Polytope<Rational>{
-
-   property TAUTOLOGICAL_CONE : Cone<Rational>;
-
-   rule TAUTOLOGICAL_CONE : MINKOWSKI_CONE {
-      my $p = $this;
-      my $mink = $this->MINKOWSKI_CONE;
-      my $rays = new Matrix($mink->RAYS);
-      $rays /= zero_vector($rays->cols);
-      my @generators = ();
-      my $i = 0;
-      print "-----------------------------------------------\n";
-      foreach my $v (@$rays){
-         my $vert = $p->MINKOWSKI_CONE_POINT($v)->VERTICES;
-         push @generators, map($_->slice(1)|$v, @{$vert});
-         if($v != zero_vector($v->dim)){
-            print "Compact part of summand ",$i,"\n";
-            $i++;
-            foreach my $vv (grep($_->[0] == 1, @$vert)){
-               print $vv->slice(1), " -- ",$v,"\n";
-            }
-            print "\n";
-
-         } else {
-            print "Tail cone:\n";
-            foreach my $vv (grep($_->[0] == 0, @$vert)){
-               print $vv->slice(1), " -- ",$v,"\n";
-            }
-
-         }
-
-      }
-      my $zero = zero_vector($this->MINKOWSKI_CONE->AMBIENT_DIM + $this->DIM);
-      @generators = grep($_ != $zero, @generators);
-      print "-----------------------------------------------\n";
-      $this->TAUTOLOGICAL_CONE = new Cone<Rational>(INPUT_RAYS=>new Matrix(@generators));
-   }
-
-}
-
-
-user_function integer_hull_lars(Polytope<Rational>){
-   my($P) = @_;
-   if($P->LATTICE){
-      return $P;
-   }
-   my $vertices = $P->VERTICES;
-   my @non_lattice_vertices = grep(!is_integral($_),@$vertices);
-   my @lattice_vertices = grep(is_integral($_),@$vertices);
-   my @new_facets = @{$P->FACETS};
-   for my $vertex (@non_lattice_vertices){
-      my $vertex_cone_rays = new Matrix(map($_-$vertex, @$vertices));
-      my $vertex_cone = new Cone(INPUT_RAYS=>$vertex_cone_rays/$vertex);
-      my ($hb) = normaliz_compute($vertex_cone,hilbert_basis=>1,verbose=>1);
-      my @good_points = grep($_->[0] == 1, @$hb); #@{$vertex_cone->HILBERT_BASIS});
-      my $integer_cone = new Cone(INPUT_RAYS=>$vertex_cone_rays/(new Matrix(@good_points)));
-      push @new_facets, @{$integer_cone->FACETS};
-      push @lattice_vertices, grep($P->contains($_), @good_points);   
-   }
-   return(new Matrix(@lattice_vertices), new Matrix(@new_facets));
-}
-
-
 
