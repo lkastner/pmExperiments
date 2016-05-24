@@ -143,7 +143,7 @@ user_function ext_graph(Integer,Integer){
    $class_group = $class_group->minor(All,~[0]);
    $class_group = new Matrix<Rational>($class_group);
    my @class_group = grep($_->[1] != -1,@$class_group);
-   my @class_group = grep(($_->[0] + ($q-$n)*$_->[1]) != -$n, @class_group);
+   @class_group = grep(($_->[0] + ($q-$n)*$_->[1]) != -$n, @class_group);
    $class_group = new Matrix<Rational>(@class_group);
 
    my $vertex_hash = new Map<Vector,Vector>();

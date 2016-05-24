@@ -48,7 +48,7 @@ namespace polymake { namespace matroid{
          Entire<objmap>::const_iterator it = entire(reductors);
          while (!it.at_end() && it->first <= facetValues) {
             // cout << "testing " << it->first << " - " << facetValues;
-            if (find_if(entire(attach_operation(it->first,facetValues,operations::gt())),operations::non_zero()).at_end()) {
+            if (find_in_range_if(entire(attach_operation(it->first,facetValues,operations::gt())),operations::non_zero()).at_end()) {
                // cout << " smaller!!!111elf" << endl;
                for(Entire< Set< SparseVector<Integer> > >::const_iterator vit = entire(it->second); !vit.at_end(); ++vit){
                   smaller /= *vit;

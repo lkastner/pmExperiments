@@ -511,9 +511,9 @@ sub random_vertices_at_points{
    my $dim = $a->dim;
    my $bottom = rand_box($dim,$boxSize,$additionalMonomials)->VERTICES->minor(All,~[0]);
    my $top = rand_box($dim,$boxSize,$additionalMonomials)->VERTICES->minor(All,~[0]);
-   my $bottom = new Matrix(map($_+$a, @$bottom));
+   $bottom = new Matrix(map($_+$a, @$bottom));
    $bottom = $bottom/$a;
-   my $top = new Matrix(map($_+$a, @$top));
+   $top = new Matrix(map($_+$a, @$top));
    $top = $top/$b;
    return $top/$bottom;
 }

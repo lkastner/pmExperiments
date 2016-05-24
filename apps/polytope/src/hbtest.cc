@@ -381,15 +381,15 @@ Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational
       }
       result = result < temp ? result : temp;
    }
-   return numerator(floor(result));
+   return floor(result);
 }
 
 
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
-   int bound = find_number_of_steps(rays, facets).to_int(), i;
+   int bound = (int) (find_number_of_steps(rays, facets));
    Array<Vector<Rational> > result(bound);
    Vector<Rational> oneStep = get_oneStep_slice(rays, facets);
-   for(i = 0; i < bound; i++){
+   for(int i = 0; i < bound; i++){
       result[i] = i*oneStep;
    }
    return result;
