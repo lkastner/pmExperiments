@@ -369,7 +369,7 @@ user_function r_zero_chains(Integer){ #FIXME: Why does it have to be Integers to
          if($id == 0){ push @nextchains, $v;}
          $v = new Vector<Integer>($c | $one);
          $v->[$c->dim-1]++;
-         my $id = grep($_ == $v, @nextchains);
+         $id = grep($_ == $v, @nextchains);
          if($id == 0){ push @nextchains, $v;}
          for(my $i = 0; $i<$c->dim-1; $i++){
             $v = new Vector<Integer>($c->slice(0,$i+1) | $one | $c->slice($i+1,$c->dim-$i-1));
