@@ -1,0 +1,422 @@
+#  Copyright (c) 2012
+#  by authors as mentioned on:
+#  https://github.com/lkastner/polymake_toric/wiki/Authors
+#  
+#  Project home:
+#  https://github.com/lkastner/polymake_toric
+#
+#  For licensing we cite the original Polymake code:
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the
+#  Free Software Foundation; either version 2, or (at your option) any
+#  later version: http://www.gnu.org/licenses/gpl.txt.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+
+
+###################################################
+###################################################
+###
+###  CyclicQuotient experimental properties
+###
+###################################################
+###################################################
+object VersalComponent {
+
+   property MILNOR_SJ : Vector<Integer>;
+
+   property MILNOR_NI : Integer;
+
+}
+
+###################################################
+###################################################
+###
+###  CyclicQuotient rules
+###
+###################################################
+###################################################
+object CyclicQuotient {
+
+   # rule VERSAL_DEFORMATION : DUAL_CONTINUED_FRACTION {
+   #    #FIXME
+   # }
+
+   # Computing the continued fractions corresponding to the components
+   # of the versal base space according to the description given in
+   # Stevens - On the Components[...].
+   rule VERSAL_COMPONENTS : DUAL_CONTINUED_FRACTION {
+      my $dcf = $this->DUAL_CONTINUED_FRACTION;
+      my @candidates = r_zero_chains(new Integer($dcf->dim));
+      my @result = grep{
+         my $diff = $dcf-$_;
+         my $id = grep($_<0, @$diff);
+         $id == 0
+      }@candidates;
+      $this->VERSAL_COMPONENTS = new Matrix(@result);
+   }
+
+}
+
+###################################################
+###################################################
+###
+###  VersalComponent rules
+###
+###################################################
+###################################################
+object CyclicQuotient {
+
+   rule VERSAL_COMPONENT.P_RESOLUTION : VERSAL_COMPONENT.CONTINUED_FRACTION,\
+         DUAL_CONTINUED_FRACTION, N, Q {
+      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
+      my $a = $this->DUAL_CONTINUED_FRACTION;
+      my $W = new Matrix([[0,1],[1,1]]);
+      for my $i (@$a){
+         my $next = $i*$W->[$W->rows-1] - $W->[$W->rows-2];
+         $W = $W/$next;
+      }
+      # print "W:\n".$W."\n";
+      my $q = new Vector(0,1);
+      for my $i (@$k) {
+         my $next = $i*$q->[$q->dim-1] - $q->[$q->dim-2];
+         # print "next: ".$next."\n";
+         $q = $q | $next*ones_vector(1);
+      }
+      # print "q: ".$q."\n";
+      my $rays = new Matrix([[1,0]]);
+      for(my $i = 2; $i<$q->dim-2; $i++){
+         # print "i: ".$i."\n";
+         my $orth = (1/$q->[$i])*$W->[$i] - (1/$q->[$i-1])*$W->[$i-1];
+         # print "orth: ".$orth."\n";
+         my $ray = primitive(new Vector(-$orth->[1], $orth->[0]));
+         # print "New ray: ".$ray."\n";
+         $rays = $rays/(new Vector<Rational>($ray));
+      }
+      $rays = $rays/(new Vector<Rational>(-$this->Q, $this->N));
+      # print $rays;
+      my @cones = map((new Set<Int>($_,$_+1)),0..($rays->rows - 2));
+      # print @cones;
+      # print "\n";
+      $this->VERSAL_COMPONENT->P_RESOLUTION = new PolyhedralFan<Rational>(INPUT_RAYS=>$rays, INPUT_CONES=>[@cones]);
+   }
+
+   rule VERSAL_COMPONENT.CQS_MATRIX : DUAL_CONTINUED_FRACTION,\
+         VERSAL_COMPONENT.CONTINUED_FRACTION,\
+         VERSAL_COMPONENT.TRIANGLES {
+      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
+      my $a = $this->DUAL_CONTINUED_FRACTION;
+      my $T = $this->VERSAL_COMPONENT->TRIANGLES;
+      my @D = map{
+         my $e = new Vector($k->dim+1);
+         $e->[new Int($_->[0])] = 1;
+         $e->[new Int($_->[1])] = -1;
+         $e->[new Int($_->[2])] = 1;
+         $e
+      }@$T;
+      my $D = transpose(new Matrix(@D));
+      #print $D;
+      $D = $D->minor(~[$k->dim], All);
+      for(my $i=0; $i<$k->dim; $i++){
+         my $diff = new Int($a->[$i]-$k->[$i]);
+         if($diff!=0){
+         my $M = new Matrix($k->dim, $diff);
+         @{$M}[$i] = ones_vector($M->cols);
+         $D = $D | $M;
+         }
+      }
+      my $lower_triang = new Matrix(map((ones_vector($_)|zero_vector($k->dim-$_)),1..($k->dim)));
+      #print $lower_triang;
+      $this->VERSAL_COMPONENT->CQS_MATRIX = $lower_triang * $D;
+   }
+
+   # rule VERSAL_COMPONENT.TOTAL_SPACE : DUAL_CONTINUED_FRACTION,\
+   #       VERSAL_COMPONENT.CONTINUED_FRACTION,\
+   #       VERSAL_COMPONENT.PYRAMID_LATTICE,\
+   #       VERSAL_COMPONENT.ALPHA_LATTICE {
+   #    #FIXME
+   # }
+  
+   rule VERSAL_COMPONENT.DIMENSION : DUAL_CONTINUED_FRACTION,\
+         VERSAL_COMPONENT.CONTINUED_FRACTION {
+      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
+      my $a = $this->DUAL_CONTINUED_FRACTION;
+      my $result = 0;
+      my $diff = $a-$k;
+      map($result += $_, @$diff);
+      my $q = new Vector(0,1);
+      for my $i (@$k) {
+         my $next = $i*$q->[$q->dim-1] - $q->[$q->dim-2];
+         # print "next: ".$next."\n";
+         $q = $q | $next*ones_vector(1);
+      }
+      for(my $i=1; $i<=$a->dim; $i++){
+         $q->[$i] == 1 ? ($result++) : 0;
+      }
+      $this->VERSAL_COMPONENT->DIMENSION = $result;
+   }
+   
+   rule VERSAL_COMPONENT.MILNOR_NI : DUAL_CONTINUED_FRACTION,\
+         VERSAL_COMPONENT.CONTINUED_FRACTION {
+      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
+      my $a = $this->DUAL_CONTINUED_FRACTION;
+      my $result = -1;
+      my $diff = $a-$k;
+      map($result += $_, @$diff);
+      $this->VERSAL_COMPONENT->MILNOR_NI = $result;
+   }
+
+}
+
+object VersalComponent {
+
+   rule MILNOR_SJ : CQS_MATRIX {
+      my $cqs = $this->CQS_MATRIX;
+      my $h2 = rank(null_space($cqs));
+      my $h1 = $cqs->rows - rank($cqs);
+      $this->MILNOR_SJ = new Vector($h2, $h1);
+   }
+
+   rule N_GON_TRIANGULATION : TRIANGLES {
+      my $T = $this->TRIANGLES;
+      my @edges;
+      foreach my $t (@$T){
+         push @edges, new Set<Int>($t->[0], $t->[1]);
+         push @edges, new Set<Int>($t->[0], $t->[2]);
+         push @edges, new Set<Int>($t->[2], $t->[1]);
+      }
+      $this->N_GON_TRIANGULATION = graph_from_edges([@edges]);
+   }
+
+   rule TRIANGLES : CONTINUED_FRACTION {
+      my $k = new Vector($this->CONTINUED_FRACTION);
+      my $labels = new Vector(0..($k->dim));
+      my @edges = ();
+      my @triangles = ();
+      while($k->dim > 2){
+         my $i = 0;
+         while($k->[$i] != 1){ $i++; }
+         my @newk = ();
+         my @newlabels = ();
+         if($i>0){
+            $k->[$i-1]--;
+            push @newk, @{$k}[0..($i-1)];
+            push @newlabels, @{$labels}[0..($i-1)];
+            push @triangles, new Vector($labels->[$i-1], $labels->[$i], $labels->[$i+1]);
+         } else { 
+            push @triangles, new Vector($labels->[$i], $labels->[$i+1], $labels->[$k->dim]);
+         }
+         if($i<$k->dim-1){
+            $k->[$i+1]--;
+            push @newk, @{$k}[($i+1)..($k->dim - 1)];
+         }
+         push @newlabels, @{$labels}[($i+1)..($k->dim)];
+         $k = new Vector(@newk);
+         $labels = new Vector(@newlabels);
+         #print "labels: ".$labels."\nk: ".$k."\n";
+      }
+      push @triangles, $labels;
+      $this->TRIANGLES = new Matrix<Integer>(@triangles);
+   }
+
+   rule CONTINUED_FRACTION : PYRAMID_LATTICE {
+      $this->CONTINUED_FRACTION = $this->PYRAMID_LATTICE->{zero_vector<Integer>(2)};
+   }
+
+   rule ALPHA_LATTICE : PYRAMID_LATTICE {
+      my $pyr_lat = new Map<Vector<Integer>, Vector<Integer>>($this->PYRAMID_LATTICE);
+      my $result = new Map<Vector<Integer>, Vector<Integer>>();
+      foreach my $key (keys %$pyr_lat){
+         $result->{$key} = christophersen_alpha($pyr_lat->{$key});
+      }
+      $this->ALPHA_LATTICE = $result;
+   }
+
+   rule PYRAMID_LATTICE : CONTINUED_FRACTION {
+      my $cf = new Vector<Integer>($this->CONTINUED_FRACTION);
+      my $result = new Map<Vector<Integer>, Vector<Integer>>();
+      my $i = 0;
+      my $j = 0;
+      my $n = $cf->dim;
+      for($i = 0; $i < $n; $i++){
+         my $copy = new Vector<Integer>($cf);
+         # print $cf."\n";
+         for($j = 0; $j < ($n-$i); $j++){
+            $result->{new Vector<Integer>($j, $i)} = $copy;
+            if($j < $n-$i-1){
+               $copy = christophersen_phi1($copy);
+            }
+         }
+         if($i < $n-1){
+            $cf = christophersen_phi2($cf);
+         }
+      }
+      $this->PYRAMID_LATTICE = $result;
+   }
+
+}
+
+
+###################################################
+###################################################
+###
+###  User functions
+###
+###################################################
+###################################################
+
+# This is a workaround since we can't compute the versal components via
+# a rule. It will compute all versal components of a CQS and then assign them
+# in the appropriate property.
+user_function assign_versal_components(CyclicQuotient){
+   my($cq) = @_;
+   my $vc = $cq->VERSAL_COMPONENTS;
+   foreach my $v (@$vc){
+      $cq->add("VERSAL_COMPONENT", CONTINUED_FRACTION=>$v);
+   }
+}
+
+# Take powers of polynomials.
+user_function pow(Polynomial<Rational, Int>, Integer){
+   my($p, $k) =  @_;
+   my $i = 0;
+   my $result = new Polynomial<Rational, Int>($p);
+   for($i = 0; $i<$k-1; $i++){
+      $result*=$p;
+   }
+   return $result;
+}
+
+# Compute the alpha vector of a continued fraction as described in article by Christophersen.
+user_function christophersen_alpha(Vector<Integer>) {
+   my($v) = @_;
+   my @chain = @$v;
+   my @result = ();
+   my $a0 = 0;
+   my $a1 = 1;
+   my $a2 = 0;
+   foreach my $entry (@chain){
+      $a2 = $entry*$a1 - $a0;
+      push @result, $a0;
+      $a0 = $a1;
+      $a1 = $a2;
+   }
+   push @result, $a0;
+   push @result, $a1;
+   return new Vector(@result);
+}
+
+
+user_function christophersen_phi1(Vector<Integer>){
+   my($v) = @_;
+   # print "phi1\n";
+   # print "v: ".$v."\n";
+   if($v->dim == 1) {die "Error: Vector too short.";}
+   # if($v->dim == 2) {return zero_vector<Integer>(1);}
+   my $alpha = christophersen_alpha($v);
+   # print "a: ".$alpha."\n";
+   my $i = $v->dim-1;
+   while(($alpha->[$i]>0) && ($alpha->[$i] != 1)) {$i--;}
+   # print "i: ".$i."\n";
+   my $result = $v->slice(0,$v->dim-1);
+   $result->[$i-1]--;
+   # print "r: ".$result."\n\n";
+   return $result;
+}
+
+user_function christophersen_phi2(Vector<Integer>){ 
+   my($v) = @_;
+   # print "phi2\n";
+   # print "v: ".$v."\n";
+   if($v->dim == 1) {die "Error: Vector too short.";}
+   # if($v->dim == 2) {return zero_vector<Integer>(1);}
+   my $alpha = christophersen_alpha($v);
+   # print "a: ".$alpha."\n";
+   my $i = 2;
+   while(($alpha->[$i]>0) && ($alpha->[$i] != 1)) {$i++;}
+   # print "i: ".$i."\n";
+   my $result = $v->slice(1,$v->dim-1);
+   $result->[$i-2]--;
+   # print "r: ".$result."\n\n";
+   return $result;
+}
+
+# Returning all continued fractions of length r that yield 0.
+user_function r_zero_chains(Integer){ #FIXME: Why does it have to be Integers to work?
+   my($r) = @_;
+   if($r == 1){
+      return new Vector(1);
+   }
+   if($r == 2){
+      return new Vector(1,1);
+   }
+   my @result = ();
+   push @result, new Vector<Integer>(1,1);
+   my $length = 2;
+   # print $length,"\n";
+   my $one = ones_vector<Integer>(1);
+   # print $one;
+   while($length < $r){
+      my @nextchains = ();
+      foreach my $c (@result){
+         my $v = new Vector<Integer>($one | $c);
+         $v->[1]++;
+         my $id = grep($_ == $v, @nextchains);
+         if($id == 0){ push @nextchains, $v;}
+         $v = new Vector<Integer>($c | $one);
+         $v->[$c->dim-1]++;
+         $id = grep($_ == $v, @nextchains);
+         if($id == 0){ push @nextchains, $v;}
+         for(my $i = 0; $i<$c->dim-1; $i++){
+            $v = new Vector<Integer>($c->slice(0,$i+1) | $one | $c->slice($i+1,$c->dim-$i-1));
+            $v->[$i]++;
+            $v->[$i+2]++;
+            # print $v."\n";
+            my $id = grep($_ == $v, @nextchains);
+            if($id == 0){ push @nextchains, $v;}
+         }
+      }
+      @result = @nextchains;
+      $length++;
+   }
+   # foreach my $c (@result){
+      # print cf2rational($c);
+   # }
+   return @result;
+}
+
+# Method for twisting a toric ideal, i.e. insted of the variables of the ring
+# we use a different set of generators.
+sub twisted_toric_ideal{
+   my($r, $ti, @gens) = @_;
+   my $g = @gens;
+   if($g != $ti->cols) {die "Error: Wrong number of generators.";}
+   my @out = ();
+   for my $s (@$ti){
+      my $pos = new Polynomial($r);
+      my $neg = new Polynomial($r);
+      $pos+=1;
+      $neg+=1;
+      #print $s;
+      for(my $i =0; $i<$s->dim(); $i++){
+         # print $s->[$i]."\n";
+         
+         if($s->[$i]<0){
+            $neg *= pow(new Polynomial($gens[$i]),-$s->[$i]);
+            #for(my $j=0; $j<-$s->[$i]; $j++){ $neg *= $C4[$i];}
+         }
+         if($s->[$i]>0){
+            $pos *= pow(new Polynomial($gens[$i]),$s->[$i]);
+            #for(my $j=0; $j<$s->[$i]; $j++){ $pos *= $C4[$i];}
+         }
+      }
+      # print $pos-$neg."\n";
+      push @out, $pos-$neg;
+   }
+   new Ideal(GENERATORS=>new Array<Polynomial<> >(@out));
+
+}

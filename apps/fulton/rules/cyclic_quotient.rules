@@ -1,422 +1,305 @@
-#  Copyright (c) 2012
-#  by authors as mentioned on:
-#  https://github.com/lkastner/polymake_toric/wiki/Authors
-#  
-#  Project home:
-#  https://github.com/lkastner/polymake_toric
-#
-#  For licensing we cite the original Polymake code:
-#
-#  This program is free software; you can redistribute it and/or modify it
-#  under the terms of the GNU General Public License as published by the
-#  Free Software Foundation; either version 2, or (at your option) any
-#  later version: http://www.gnu.org/licenses/gpl.txt.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
+use List::MoreUtils qw(uniq);
 
+declare object ExtMonomial;
 
-###################################################
-###################################################
-###
-###  CyclicQuotient experimental properties
-###
-###################################################
-###################################################
-object VersalComponent {
-
-   property MILNOR_SJ : Vector<Integer>;
-
-   property MILNOR_NI : Integer;
-
-}
-
-###################################################
-###################################################
-###
-###  CyclicQuotient rules
-###
-###################################################
-###################################################
-object CyclicQuotient {
-
-   # rule VERSAL_DEFORMATION : DUAL_CONTINUED_FRACTION {
-   #    #FIXME
-   # }
-
-   # Computing the continued fractions corresponding to the components
-   # of the versal base space according to the description given in
-   # Stevens - On the Components[...].
-   rule VERSAL_COMPONENTS : DUAL_CONTINUED_FRACTION {
-      my $dcf = $this->DUAL_CONTINUED_FRACTION;
-      my @candidates = r_zero_chains(new Integer($dcf->dim));
-      my @result = grep{
-         my $diff = $dcf-$_;
-         my $id = grep($_<0, @$diff);
-         $id == 0
-      }@candidates;
-      $this->VERSAL_COMPONENTS = new Matrix(@result);
-   }
-
-}
-
-###################################################
-###################################################
-###
-###  VersalComponent rules
-###
-###################################################
-###################################################
-object CyclicQuotient {
-
-   rule VERSAL_COMPONENT.P_RESOLUTION : VERSAL_COMPONENT.CONTINUED_FRACTION,\
-         DUAL_CONTINUED_FRACTION, N, Q {
-      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
-      my $a = $this->DUAL_CONTINUED_FRACTION;
-      my $W = new Matrix([[0,1],[1,1]]);
-      for my $i (@$a){
-         my $next = $i*$W->[$W->rows-1] - $W->[$W->rows-2];
-         $W = $W/$next;
-      }
-      # print "W:\n".$W."\n";
-      my $q = new Vector(0,1);
-      for my $i (@$k) {
-         my $next = $i*$q->[$q->dim-1] - $q->[$q->dim-2];
-         # print "next: ".$next."\n";
-         $q = $q | $next*ones_vector(1);
-      }
-      # print "q: ".$q."\n";
-      my $rays = new Matrix([[1,0]]);
-      for(my $i = 2; $i<$q->dim-2; $i++){
-         # print "i: ".$i."\n";
-         my $orth = (1/$q->[$i])*$W->[$i] - (1/$q->[$i-1])*$W->[$i-1];
-         # print "orth: ".$orth."\n";
-         my $ray = primitive(new Vector(-$orth->[1], $orth->[0]));
-         # print "New ray: ".$ray."\n";
-         $rays = $rays/(new Vector<Rational>($ray));
-      }
-      $rays = $rays/(new Vector<Rational>(-$this->Q, $this->N));
-      # print $rays;
-      my @cones = map((new Set<Int>($_,$_+1)),0..($rays->rows - 2));
-      # print @cones;
-      # print "\n";
-      $this->VERSAL_COMPONENT->P_RESOLUTION = new PolyhedralFan<Rational>(INPUT_RAYS=>$rays, INPUT_CONES=>[@cones]);
-   }
-
-   rule VERSAL_COMPONENT.CQS_MATRIX : DUAL_CONTINUED_FRACTION,\
-         VERSAL_COMPONENT.CONTINUED_FRACTION,\
-         VERSAL_COMPONENT.TRIANGLES {
-      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
-      my $a = $this->DUAL_CONTINUED_FRACTION;
-      my $T = $this->VERSAL_COMPONENT->TRIANGLES;
-      my @D = map{
-         my $e = new Vector($k->dim+1);
-         $e->[new Int($_->[0])] = 1;
-         $e->[new Int($_->[1])] = -1;
-         $e->[new Int($_->[2])] = 1;
-         $e
-      }@$T;
-      my $D = transpose(new Matrix(@D));
-      #print $D;
-      $D = $D->minor(~[$k->dim], All);
-      for(my $i=0; $i<$k->dim; $i++){
-         my $diff = new Int($a->[$i]-$k->[$i]);
-         if($diff!=0){
-         my $M = new Matrix($k->dim, $diff);
-         @{$M}[$i] = ones_vector($M->cols);
-         $D = $D | $M;
-         }
-      }
-      my $lower_triang = new Matrix(map((ones_vector($_)|zero_vector($k->dim-$_)),1..($k->dim)));
-      #print $lower_triang;
-      $this->VERSAL_COMPONENT->CQS_MATRIX = $lower_triang * $D;
-   }
-
-   # rule VERSAL_COMPONENT.TOTAL_SPACE : DUAL_CONTINUED_FRACTION,\
-   #       VERSAL_COMPONENT.CONTINUED_FRACTION,\
-   #       VERSAL_COMPONENT.PYRAMID_LATTICE,\
-   #       VERSAL_COMPONENT.ALPHA_LATTICE {
-   #    #FIXME
-   # }
-  
-   rule VERSAL_COMPONENT.DIMENSION : DUAL_CONTINUED_FRACTION,\
-         VERSAL_COMPONENT.CONTINUED_FRACTION {
-      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
-      my $a = $this->DUAL_CONTINUED_FRACTION;
-      my $result = 0;
-      my $diff = $a-$k;
-      map($result += $_, @$diff);
-      my $q = new Vector(0,1);
-      for my $i (@$k) {
-         my $next = $i*$q->[$q->dim-1] - $q->[$q->dim-2];
-         # print "next: ".$next."\n";
-         $q = $q | $next*ones_vector(1);
-      }
-      for(my $i=1; $i<=$a->dim; $i++){
-         $q->[$i] == 1 ? ($result++) : 0;
-      }
-      $this->VERSAL_COMPONENT->DIMENSION = $result;
-   }
+object ExtMonomial{
    
-   rule VERSAL_COMPONENT.MILNOR_NI : DUAL_CONTINUED_FRACTION,\
-         VERSAL_COMPONENT.CONTINUED_FRACTION {
-      my $k = $this->VERSAL_COMPONENT->CONTINUED_FRACTION;
-      my $a = $this->DUAL_CONTINUED_FRACTION;
-      my $result = -1;
-      my $diff = $a-$k;
-      map($result += $_, @$diff);
-      $this->VERSAL_COMPONENT->MILNOR_NI = $result;
-   }
+   property DEGREE : Vector;
+
+   property PATH : Matrix;
+
+   property SOURCE : Vector;
 
 }
 
-object VersalComponent {
 
-   rule MILNOR_SJ : CQS_MATRIX {
-      my $cqs = $this->CQS_MATRIX;
-      my $h2 = rank(null_space($cqs));
-      my $h1 = $cqs->rows - rank($cqs);
-      $this->MILNOR_SJ = new Vector($h2, $h1);
+declare object ResolutionData;
+
+object ResolutionData {
+   
+   property WEIGHTED_EDGES : Map<Pair<Vector, Vector>, Matrix>;
+
+   property LABELS : String;
+   
+   property QUIVER : Graph<Directed>;
+
+   property INCIDENCE_MATRIX : Matrix;
+
+}
+
+
+
+object CyclicQuotient {
+   
+   property CLASS_GROUP_REPRESENTATIVES : Matrix;
+
+   rule CLASS_GROUP_REPRESENTATIVES : N, Q{
+      my $n = $this->N;
+      my $q = $this->Q;
+      my @class_group = map((new Vector(-$_, 0)),1..(convert_to<Int>($n)));
+      $this->CLASS_GROUP_REPRESENTATIVES = new Matrix<Rational>(@class_group);
    }
 
-   rule N_GON_TRIANGULATION : TRIANGLES {
-      my $T = $this->TRIANGLES;
-      my @edges;
-      foreach my $t (@$T){
-         push @edges, new Set<Int>($t->[0], $t->[1]);
-         push @edges, new Set<Int>($t->[0], $t->[2]);
-         push @edges, new Set<Int>($t->[2], $t->[1]);
+   property RESOLUTION : ResolutionData;
+
+   property EXT1_MATRIX : Matrix;
+   
+   property TOR1_MATRIX : Matrix;
+
+   rule TOR1_MATRIX : EXT1_MATRIX, RESOLUTION.INCIDENCE_MATRIX{
+      my $ext1 = $this->EXT1_MATRIX;
+      my $incidence_matrix = $this->RESOLUTION->INCIDENCE_MATRIX;
+      $this->TOR1_MATRIX = $incidence_matrix * $incidence_matrix * $ext1;
+   }
+
+   rule EXT1_MATRIX : DUAL_CONTINUED_FRACTION{
+      my $dcf = $this->DUAL_CONTINUED_FRACTION;
+      $this->EXT1_MATRIX = ext1_mat_from_dcf($dcf);
+   }
+
+   rule RESOLUTION.INCIDENCE_MATRIX : N, RESOLUTION.WEIGHTED_EDGES{
+      my $n = $this->N;
+      my $weighted_edges = $this->RESOLUTION->WEIGHTED_EDGES;
+      my $incidence_matrix = new Matrix((convert_to<Int>($n)), (convert_to<Int>($n)));
+      foreach my $edge (keys %$weighted_edges){
+         my $source = $edge->[0];
+         my $target = $edge->[1];
+         #print $source," ",$target,"\n";
+         my $row = -$target->[0]-1;
+         my $col = -$source->[0]-1;
+         $incidence_matrix->($row, $col) = $weighted_edges->{$edge}->rows;
       }
-      $this->N_GON_TRIANGULATION = graph_from_edges([@edges]);
+      $this->RESOLUTION->INCIDENCE_MATRIX = $incidence_matrix;
    }
 
-   rule TRIANGLES : CONTINUED_FRACTION {
-      my $k = new Vector($this->CONTINUED_FRACTION);
-      my $labels = new Vector(0..($k->dim));
-      my @edges = ();
-      my @triangles = ();
-      while($k->dim > 2){
-         my $i = 0;
-         while($k->[$i] != 1){ $i++; }
-         my @newk = ();
-         my @newlabels = ();
-         if($i>0){
-            $k->[$i-1]--;
-            push @newk, @{$k}[0..($i-1)];
-            push @newlabels, @{$labels}[0..($i-1)];
-            push @triangles, new Vector($labels->[$i-1], $labels->[$i], $labels->[$i+1]);
-         } else { 
-            push @triangles, new Vector($labels->[$i], $labels->[$i+1], $labels->[$k->dim]);
-         }
-         if($i<$k->dim-1){
-            $k->[$i+1]--;
-            push @newk, @{$k}[($i+1)..($k->dim - 1)];
-         }
-         push @newlabels, @{$labels}[($i+1)..($k->dim)];
-         $k = new Vector(@newk);
-         $labels = new Vector(@newlabels);
-         #print "labels: ".$labels."\nk: ".$k."\n";
-      }
-      push @triangles, $labels;
-      $this->TRIANGLES = new Matrix<Integer>(@triangles);
-   }
-
-   rule CONTINUED_FRACTION : PYRAMID_LATTICE {
-      $this->CONTINUED_FRACTION = $this->PYRAMID_LATTICE->{zero_vector<Integer>(2)};
-   }
-
-   rule ALPHA_LATTICE : PYRAMID_LATTICE {
-      my $pyr_lat = new Map<Vector<Integer>, Vector<Integer>>($this->PYRAMID_LATTICE);
-      my $result = new Map<Vector<Integer>, Vector<Integer>>();
-      foreach my $key (keys %$pyr_lat){
-         $result->{$key} = christophersen_alpha($pyr_lat->{$key});
-      }
-      $this->ALPHA_LATTICE = $result;
-   }
-
-   rule PYRAMID_LATTICE : CONTINUED_FRACTION {
-      my $cf = new Vector<Integer>($this->CONTINUED_FRACTION);
-      my $result = new Map<Vector<Integer>, Vector<Integer>>();
-      my $i = 0;
-      my $j = 0;
-      my $n = $cf->dim;
-      for($i = 0; $i < $n; $i++){
-         my $copy = new Vector<Integer>($cf);
-         # print $cf."\n";
-         for($j = 0; $j < ($n-$i); $j++){
-            $result->{new Vector<Integer>($j, $i)} = $copy;
-            if($j < $n-$i-1){
-               $copy = christophersen_phi1($copy);
+   rule RESOLUTION.WEIGHTED_EDGES : CLASS_GROUP_REPRESENTATIVES, N, Q {
+      my $G = $this->CLASS_GROUP_REPRESENTATIVES;
+      my $n = $this->N;
+      my $weighted_edges = new Map<Pair<Vector, Vector>, Matrix>();
+      foreach my $coefficients (@$G){
+         my $divisor = $this->DIVISOR(COEFFICIENTS=>$coefficients, temporary);
+         my $generators = sort_matrix_rows_by_first_coordinate($divisor->MODULE_GENERATORS);
+         # print $generators,"\n";
+         my $target = $coefficients;
+         for(my $j = 1; $j<$generators->rows; $j++){
+            my $inbetween = $generators->[$j]->[0] - $generators->[$j-1]->[0];
+            my $source = new Vector(-$inbetween, 0);
+            my $edge = new Pair<Vector,Vector>($source, $target);
+            my $shift = $generators->[$j-1];
+            if(!defined $weighted_edges->{$edge}){
+               $weighted_edges->{$edge} = new Matrix($shift);
+            } else {
+               my $oldshift = $weighted_edges->{$edge};
+               $weighted_edges->{$edge} = $oldshift / $shift;
             }
          }
-         if($i < $n-1){
-            $cf = christophersen_phi2($cf);
+      }
+      $this->RESOLUTION->WEIGHTED_EDGES = $weighted_edges;
+   }
+
+   rule RESOLUTION.QUIVER.ADJACENCY, RESOLUTION.QUIVER.NODE_LABELS : CLASS_GROUP_REPRESENTATIVES, N, RESOLUTION.WEIGHTED_EDGES{
+      my $class_group = $this->CLASS_GROUP_REPRESENTATIVES;
+      my $graph = new common::Graph<Directed>($class_group->rows);
+      my $weighted_edges = $this->RESOLUTION->WEIGHTED_EDGES;
+      my $numbering = new Map<Vector, Int>();
+      my $k = 0;
+      foreach my $g (@$class_group){
+         $numbering->{$g} = $k;
+         $k++;
+      }
+      foreach my $edge (keys %$weighted_edges){
+         my $source = $edge->[0];
+         my $target = $edge->[1];
+         $graph->edge($numbering->{$source}, $numbering->{$target});
+      }
+      $this->RESOLUTION->QUIVER->NODE_LABELS = @$class_group;
+      $this->RESOLUTION->QUIVER->ADJACENCY = $graph;
+   }
+
+   user_method ext1(TDivisor, TDivisor){
+      my($cqs, $d1, $d2) = @_;
+      my $rho1 = new Vector<Rational>(1, new Rational($cqs->Q,$cqs->N));
+      my $d1Gens = new Matrix<Rational>(sort_matrix_rows_by_first_coordinate($d1->MODULE_GENERATORS));
+      my $annVertex = -$d1Gens->[$d1Gens->rows-1] + ($d1Gens->[$d1Gens->rows-1]->[0] - $d1Gens->[0]->[0])*$rho1;
+      $annVertex = $annVertex - $rho1 - (new Vector<Rational>(0,new Rational(1,$cqs->N)));
+      # print "Ann: ",$annVertex,"\n";
+      my $d2Vertex = $d2->SECTION_POLYTOPE->VERTICES->[0]->slice(1);
+      $annVertex += $d2Vertex;
+      my $ann = new Polytope(POINTS=>[[1,@$annVertex],[0,0,-1],[0,-$cqs->N,-$cqs->Q]]);
+      # print $d1Gens,"\n",$d2Vertex,"\n";
+      my @result = ();
+      for(my $i=1; $i<$d1Gens->rows; $i++){
+         my $intersectionVertex = $d1Gens->[$i-1] + ($d1Gens->[$i]->[0] - $d1Gens->[$i-1]->[0])*$rho1;
+         # print "int: ",$intersectionVertex,"\n";
+         $intersectionVertex *= (-1);
+         $intersectionVertex += $d2Vertex;
+         my $intersector = new Polytope(POINTS=>[[1,@$intersectionVertex],[0,0,1],[0,$cqs->N,$cqs->Q]]);
+         my $intersection = intersection($ann, $intersector);
+         # print "LP:\n",$intersection->LATTICE_POINTS,"\n";
+         @result = (@result, @{$intersection->LATTICE_POINTS->minor(All,~[0])});
+      }
+      return new Matrix(uniq(@result));
+   }
+
+   user_method multiply(ExtMonomial, ExtMonomial){
+      my($cqs, $b, $a) = @_;
+      my $weightedEdges = $cqs->RESOLUTION->WEIGHTED_EDGES;
+      my $facets = new Matrix<Rational>(primitive($cqs->RAYS));
+      my $resultPath = $a->PATH;
+      # print "Path is:\n",$resultPath,"\n";
+      my $last = $resultPath->[$resultPath->rows - 1];
+      for(my $i = 0; $i<$b->PATH->rows; $i++){
+         my $bi = vertex_from_ineq($b->PATH->[$i], $facets);
+         $bi = $bi - $a->DEGREE;
+         $bi = ineq_from_vertex($bi, $facets);
+         # print "bi: ",$bi,"\n";
+         my @S = find_incoming_arrows($last, $weightedEdges, $facets);
+         # print "S:\n",join("\n",@S),"\n\n";
+         @S = grep(($_->[0] <= $bi->[0]) && ($_->[1] <= $bi->[1]),@S);
+         # print "S:\n",join("\n",@S),"\n\n";
+         if(@S == 1){
+            $last = pop @S;
+            $resultPath = $resultPath/$last;
+         } else {
+            return 0;
          }
       }
-      $this->PYRAMID_LATTICE = $result;
+      my $d1 = $cqs->add('DIVISOR',COEFFICIENTS=>$last);
+      my $d2 = $cqs->add('DIVISOR',COEFFICIENTS=>$b->SOURCE);
+      my $possibleDegrees = $cqs->ext1($d1, $d2);
+      # print "Possible Degrees:\n",$possibleDegrees,"\n";
+      my $resultDegree = $a->DEGREE + $b->DEGREE;
+      if(grep($_ == $resultDegree, @$possibleDegrees) == 1){
+         return new ExtMonomial(DEGREE=>$resultDegree, PATH=>$resultPath, SOURCE=>$b->SOURCE);
+      } else {
+         return 0;
+      }
    }
-
-}
-
-
-###################################################
-###################################################
-###
-###  User functions
-###
-###################################################
-###################################################
-
-# This is a workaround since we can't compute the versal components via
-# a rule. It will compute all versal components of a CQS and then assign them
-# in the appropriate property.
-user_function assign_versal_components(CyclicQuotient){
-   my($cq) = @_;
-   my $vc = $cq->VERSAL_COMPONENTS;
-   foreach my $v (@$vc){
-      $cq->add("VERSAL_COMPONENT", CONTINUED_FRACTION=>$v);
-   }
-}
-
-# Take powers of polynomials.
-user_function pow(Polynomial<Rational, Int>, Integer){
-   my($p, $k) =  @_;
-   my $i = 0;
-   my $result = new Polynomial<Rational, Int>($p);
-   for($i = 0; $i<$k-1; $i++){
-      $result*=$p;
-   }
-   return $result;
-}
-
-# Compute the alpha vector of a continued fraction as described in article by Christophersen.
-user_function christophersen_alpha(Vector<Integer>) {
-   my($v) = @_;
-   my @chain = @$v;
-   my @result = ();
-   my $a0 = 0;
-   my $a1 = 1;
-   my $a2 = 0;
-   foreach my $entry (@chain){
-      $a2 = $entry*$a1 - $a0;
-      push @result, $a0;
-      $a0 = $a1;
-      $a1 = $a2;
-   }
-   push @result, $a0;
-   push @result, $a1;
-   return new Vector(@result);
-}
-
-
-user_function christophersen_phi1(Vector<Integer>){
-   my($v) = @_;
-   # print "phi1\n";
-   # print "v: ".$v."\n";
-   if($v->dim == 1) {die "Error: Vector too short.";}
-   # if($v->dim == 2) {return zero_vector<Integer>(1);}
-   my $alpha = christophersen_alpha($v);
-   # print "a: ".$alpha."\n";
-   my $i = $v->dim-1;
-   while(($alpha->[$i]>0) && ($alpha->[$i] != 1)) {$i--;}
-   # print "i: ".$i."\n";
-   my $result = $v->slice(0,$v->dim-1);
-   $result->[$i-1]--;
-   # print "r: ".$result."\n\n";
-   return $result;
-}
-
-user_function christophersen_phi2(Vector<Integer>){ 
-   my($v) = @_;
-   # print "phi2\n";
-   # print "v: ".$v."\n";
-   if($v->dim == 1) {die "Error: Vector too short.";}
-   # if($v->dim == 2) {return zero_vector<Integer>(1);}
-   my $alpha = christophersen_alpha($v);
-   # print "a: ".$alpha."\n";
-   my $i = 2;
-   while(($alpha->[$i]>0) && ($alpha->[$i] != 1)) {$i++;}
-   # print "i: ".$i."\n";
-   my $result = $v->slice(1,$v->dim-1);
-   $result->[$i-2]--;
-   # print "r: ".$result."\n\n";
-   return $result;
-}
-
-# Returning all continued fractions of length r that yield 0.
-user_function r_zero_chains(Integer){ #FIXME: Why does it have to be Integers to work?
-   my($r) = @_;
-   if($r == 1){
-      return new Vector(1);
-   }
-   if($r == 2){
-      return new Vector(1,1);
-   }
-   my @result = ();
-   push @result, new Vector<Integer>(1,1);
-   my $length = 2;
-   # print $length,"\n";
-   my $one = ones_vector<Integer>(1);
-   # print $one;
-   while($length < $r){
-      my @nextchains = ();
-      foreach my $c (@result){
-         my $v = new Vector<Integer>($one | $c);
-         $v->[1]++;
-         my $id = grep($_ == $v, @nextchains);
-         if($id == 0){ push @nextchains, $v;}
-         $v = new Vector<Integer>($c | $one);
-         $v->[$c->dim-1]++;
-         $id = grep($_ == $v, @nextchains);
-         if($id == 0){ push @nextchains, $v;}
-         for(my $i = 0; $i<$c->dim-1; $i++){
-            $v = new Vector<Integer>($c->slice(0,$i+1) | $one | $c->slice($i+1,$c->dim-$i-1));
-            $v->[$i]++;
-            $v->[$i+2]++;
-            # print $v."\n";
-            my $id = grep($_ == $v, @nextchains);
-            if($id == 0){ push @nextchains, $v;}
+   
+   user_method print_monomial_nicely(ExtMonomial){
+      my($cqs, $monomial) = @_;
+      if($monomial == 0){
+         print "0\n";
+         return;
+      }
+      my $facets = new Matrix<Rational>(primitive($cqs->RAYS));
+      my $n = $cqs->N;
+      print "([",join(",",@{$monomial->DEGREE}),"], ";
+      for(my $i=$monomial->PATH->rows-1; $i>=0; $i--){
+         my $current = $monomial->PATH->[$i];
+         my($ei, $shift) = find_lineq_ei($current, $facets, $n);
+         my $index = -$ei->[0];
+         print "E",$index,"[",join(",",@$shift),"]";
+         if($i>0){
+            print "->";
          }
       }
-      @result = @nextchains;
-      $length++;
+      print ", ";
+      my($sourceEi, $sourceShift) = find_lineq_ei($monomial->SOURCE, $facets, $n);
+      print "E",-$sourceEi->[0],"[",join(",",@$sourceShift),"])\n";
    }
-   # foreach my $c (@result){
-      # print cf2rational($c);
-   # }
-   return @result;
+
 }
 
-# Method for twisting a toric ideal, i.e. insted of the variables of the ring
-# we use a different set of generators.
-sub twisted_toric_ideal{
-   my($r, $ti, @gens) = @_;
-   my $g = @gens;
-   if($g != $ti->cols) {die "Error: Wrong number of generators.";}
-   my @out = ();
-   for my $s (@$ti){
-      my $pos = new Polynomial($r);
-      my $neg = new Polynomial($r);
-      $pos+=1;
-      $neg+=1;
-      #print $s;
-      for(my $i =0; $i<$s->dim(); $i++){
-         # print $s->[$i]."\n";
-         
-         if($s->[$i]<0){
-            $neg *= pow(new Polynomial($gens[$i]),-$s->[$i]);
-            #for(my $j=0; $j<-$s->[$i]; $j++){ $neg *= $C4[$i];}
-         }
-         if($s->[$i]>0){
-            $pos *= pow(new Polynomial($gens[$i]),$s->[$i]);
-            #for(my $j=0; $j<$s->[$i]; $j++){ $pos *= $C4[$i];}
-         }
+
+
+user_function ext1_mat_from_dcf(Vector<Integer>){
+   my($dcf) = @_;
+   $dcf = new Vector<Integer>($dcf);
+   my $length = $dcf->dim;
+   if(($length == 0) || ($dcf == ones_vector<Integer>(1))){
+      return zero_matrix(1,1);
+   }
+   if($dcf->[$length-1] == 1){
+      $dcf = $dcf->slice(0, $length-1);
+      $dcf->[$dcf->dim - 1]--;
+      return ext1_mat_from_dcf(new Vector<Integer>($dcf));
+   }
+   $dcf->[$length-1]--;
+   my @dcf = @$dcf;
+   my $upper_left_dcf = 0;
+   if($length>1){
+      $upper_left_dcf = new Vector<Integer>($dcf->slice(0,$length-1));
+   } else {
+      $upper_left_dcf = zero_vector<Integer>(0);
+   }
+   my $lower_right_dcf = new Vector<Integer>(\@dcf);
+   my $upper_left = ext1_mat_from_dcf($upper_left_dcf);
+   my $lower_right = ext1_mat_from_dcf($lower_right_dcf);
+   my $A;
+   if($upper_left->rows > $lower_right->rows){
+      my $start = $upper_left->rows - $lower_right->rows;
+      my $modified_upper_left = new Matrix($upper_left - upper_triangular_ones_matrix($upper_left->rows));
+      $A = $modified_upper_left->minor(All, [$start..($upper_left->rows-1)]);
+   } else {
+      my $start = $lower_right->rows - $upper_left->rows;
+      $A = $lower_right->minor([$start..($lower_right->rows-1)], All);
+   }
+   my $result = ($upper_left | $A) / (transpose($A) | $lower_right);
+   $result = $result + upper_triangular_ones_matrix($result->rows);
+   return new Matrix($result);
+}
+
+sub vertex_from_ineq{
+   my($val, $facets) = @_;
+   my $p = new Polytope(INEQUALITIES=>($val | $facets));
+   return $p->VERTICES->[0]->slice(1);
+}
+
+sub ineq_from_vertex{
+   my($vertex, $facets) = @_;
+   return -$facets * $vertex;
+}
+
+sub are_linearly_equivalent{
+   my($div1, $div2, $facets) = @_;
+   my $v1 = vertex_from_ineq($div1, $facets);
+   my $v2 = vertex_from_ineq($div2, $facets);
+   return is_integral($v1-$v2);
+}
+
+sub find_lineq_ei{
+   my($div, $facets, $n) = @_;
+   for(my $i=0; $i<$n; $i++){
+      my $candidate = new Vector(-$i, 0);
+      if(are_linearly_equivalent($div, $candidate, $facets)){
+         my $shift = vertex_from_ineq($div, $facets) - vertex_from_ineq($candidate, $facets);
+         return($candidate, $shift);
       }
-      # print $pos-$neg."\n";
-      push @out, $pos-$neg;
    }
-   new Ideal(GENERATORS=>new Array<Polynomial<> >(@out));
-
+   die "No fitting candidate.";
 }
+
+sub find_incoming_arrows{
+   my($div, $weightedEdges, $facets) = @_;
+   my @selected = grep($_->[1] == $div, keys %$weightedEdges);
+   # print "Selection done.\n";
+   my @result = map{
+      my $sourceVertex = vertex_from_ineq($_->[0], $facets);
+      # print "Have source vertex.\n";
+      my $degrees = $weightedEdges->{$_};
+      map($_+$sourceVertex, @$degrees);
+   }@selected;
+   return map(ineq_from_vertex($_, $facets), @result);
+}
+
+sub upper_triangular_ones_matrix{
+   my($n) = @_;
+   return new Matrix(map(ones_vector($n-$_) | zero_vector($_), 1..$n));
+}
+
+
+sub sort_matrix_rows_by_first_coordinate{
+   my($matrix) = @_;
+   if($matrix->rows == 1){
+      return $matrix;
+   }
+   my @rows = @$matrix;
+   my @sorted_rows = sort{$a->[0] <=> $b->[0]} @rows;
+   return new Matrix(@sorted_rows);
+}
+
+
+
+
+

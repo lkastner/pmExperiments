@@ -23,6 +23,7 @@ INCLUDE
    milnor.rules
    commalg.rules
    cyclic_quotient.rules
+   cyclic_quotient_experimental.rules
    tropical.rules
    downgrading.rules
    deformations.rules
