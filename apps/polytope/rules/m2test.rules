@@ -116,12 +116,23 @@ sub promote_matrix_to_QQ{
 
 sub polytope_to_m2{
    my($name, $P) = @_;
+   my $n = $P->CONE_AMBIENT_DIM;
+   if($n == 0){
+      $n = $P->VERTICES->cols() > $n ? $P->VERTICES->cols() : $n; 
+      $n = $P->LINEALITY_SPACE->cols() > $n ? $P->LINEALITY_SPACE->cols() : $n; 
+   }
    my $vertices = new Matrix(grep($_->[0] == 1, @{$P->VERTICES}));
+   if($vertices->rows() == 0){
+      $vertices = new Matrix(0, $n);
+   }
    my $rays = new Matrix(grep($_->[0] == 0, @{$P->VERTICES}));
    if($rays->rows() == 0){
-      $rays = new Matrix(0, $vertices->cols());
+      $rays = new Matrix(0, $n);
    }
    my $lineality = new Matrix($P->LINEALITY_SPACE);
+   if($lineality->rows() == 0){
+      $lineality = new Matrix(0, $n);
+   }
    my $result = m2_matrix("vertices".$name, transpose($vertices->minor(All, ~[0])));
    $result .= m2_matrix("rays".$name, transpose($rays->minor(All, ~[0])));
    $result .= m2_matrix("lineality".$name, transpose($lineality->minor(All, ~[0])));
