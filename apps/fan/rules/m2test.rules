@@ -1,0 +1,94 @@
+sub fan_to_m2{
+   my($name, $F) = @_;
+   my $n = $F->AMBIENT_DIM;
+   my $rays = $F->RAYS;
+   my $maxCones = $F->MAXIMAL_CONES;
+   my $lineality = new Matrix($F->LINEALITY_SPACE);
+   if($lineality->rows() == 0){
+      $lineality = new Matrix(0, $n);
+   }
+   my $result = m2_matrix("rays".$name, transpose($rays));
+   $result .= m2_matrix("lineality".$name, transpose($lineality));
+   $result .= promote_matrix_to_QQ("rays".$name);
+   $result .= promote_matrix_to_QQ("lineality".$name);
+   my @m = map("{".join(",",@$_)."}", @$maxCones);
+   $result .= "maxCones".$name." = {".join(",", @m)."};\n";
+   $result .= $name." = fan (";
+   $result .= "rays".$name." ,";
+   $result .= "lineality".$name." ,";
+   $result .= "maxCones".$name.");\n";
+   return $result;
+}
+
+sub normal_fan_test{
+   my($P) = @_;
+   my $result = polytope_to_m2("P", $P);
+   my $F = normal_fan($P);
+   $result .= fan_to_m2("desired", $F);
+   $result .= "computed = normalFan P;\n";
+   $result .= "assert(computed == desired)\n";
+   $result .= "assert(isPolytopal computed)\n";
+   $result .= "assert(";
+   $result .= $F->SMOOTH_FAN ? "" : "not ";
+   $result .= "isSmooth computed)\n";
+   $result .= "assert(";
+   $result .= $F->PURE ? "" : "not ";
+   $result .= "isPure computed)\n";
+   $result .= "assert(";
+   $result .= $F->SIMPLICIAL ? "" : "not ";
+   $result .= "isSimplicial computed)\n";
+   $result .= "assert(";
+   $result .= $F->COMPLETE ? "" : "not ";
+   $result .= "isComplete computed)\n";
+	return $result;
+}
+
+sub normal_fan_test_wrapper{
+	my($P) = @_;
+	my $name = "ambDim: ".$P->AMBIENT_DIM.", dim: ".$P->DIM.", nvert: ".$P->N_VERTICES;
+	print "Hello!\n";
+	my $result = test_wrapper_start("normal_fan + several booleans", $name);
+	print $result,"\n";
+	$result .= normal_fan_test($P);
+	print $result,"\n";
+	$result .= test_wrapper_end();
+	print $result;
+	return $result;
+}
+
+user_function mainNormalFanTest(){
+   my @polytopeFiles = `grep -R "polytope::Polytope&lt;Rational&gt;" /home/lars/polymake-source/apps/polytope/testsuite`;
+   open(FILE, ">/home/lars/normal_fan_tests_raw.m2");
+	my @polytopes = map{
+      my $file = $_;
+      my $bla = 0;
+      eval {
+         my @split = split(":",$file);
+         $bla = User::load($split[0]);
+      };
+   }@polytopeFiles;
+	my $n = @polytopes;
+	print "Have ",$n," polytopes\n";
+	@polytopes = grep{
+      my $P = $_;
+      my @props = $P->list_properties();
+      my $test = (1 == (scalar grep($_ eq "POINTS", @props)));
+      $test
+   }@polytopes;
+	$n = @polytopes;
+	print "Have ",$n," polytopes\n";
+	@polytopes = map{new Polytope(POINTS=>$_->POINTS)}@polytopes;
+	$n = @polytopes;
+	print "Have ",$n," polytopes\n";
+   my $i=0;
+   foreach my $polytope (@polytopes){
+      eval{
+			print $polytope->AMBIENT_DIM;
+			my $test = normal_fan_test_wrapper($polytope);
+			
+			print FILE $test;
+      };
+      $i++;
+   }
+   close(FILE);
+}
