@@ -114,6 +114,31 @@ sub promote_matrix_to_QQ{
    return $result;
 }
 
+sub polytope_to_m2_dual{
+   my($name, $P) = @_;
+   my $n = $P->CONE_AMBIENT_DIM;
+   if($n == 0){
+      $n = $P->FACETS->cols() > $n ? $P->VERTICES->cols() : $n; 
+      $n = $P->AFFINE_HULL->cols() > $n ? $P->LINEALITY_SPACE->cols() : $n; 
+   }
+   my $ineq = new Matrix($P->FACETS);
+   if($ineq->rows() == 0){
+      $ineq = new Matrix(0, $n);
+   }
+   my $eq = new Matrix($P->AFFINE_HULL);
+   if($eq->rows() == 0){
+      $eq = new Matrix(0, $n);
+   }
+   my $result = m2_matrix("ineqlhs".$name, -$ineq->minor(All, ~[0]));
+   $result .= m2_matrix("ineqrhs".$name, $ineq->minor(All, [0]));
+   $result .= m2_matrix("eqlhs".$name, -$eq->minor(All, ~[0]));
+   $result .= m2_matrix("eqrhs".$name, $eq->minor(All, [0]));
+   $result .= $name." = intersection(";
+   $result .= "ineqlhs".$name.", ineqrhs".$name.", ";
+   $result .= "eqlhs".$name.", eqrhs".$name.");\n";
+   return $result;
+}
+
 sub polytope_to_m2{
    my($name, $P) = @_;
    my $n = $P->CONE_AMBIENT_DIM;
@@ -136,9 +161,6 @@ sub polytope_to_m2{
    my $result = m2_matrix("vertices".$name, transpose($vertices->minor(All, ~[0])));
    $result .= m2_matrix("rays".$name, transpose($rays->minor(All, ~[0])));
    $result .= m2_matrix("lineality".$name, transpose($lineality->minor(All, ~[0])));
-   $result .= promote_matrix_to_QQ("vertices".$name);
-   $result .= promote_matrix_to_QQ("rays".$name);
-   $result .= promote_matrix_to_QQ("lineality".$name);
    $result .= $name." = convexHull(";
    $result .= "vertices".$name.",";
    $result .= "rays".$name.",";
@@ -279,4 +301,66 @@ sub minkowskiSum_test{
    $result .= "assert(computed == desired)\n";
    $result .= test_wrapper_end();
    return $result;
+}
+
+sub representation_test{
+   my($P) = @_;
+   my $name = "dim: ".$P->DIM.", ambientDim: ".$P->AMBIENT_DIM.", vertices: ".$P->N_VERTICES.", facets: ".$P->N_FACETS;
+   my $result = test_wrapper_start("representation vs dual representation", $name);
+   $result .= polytope_to_m2("P", $P);
+   $result .= polytope_to_m2_dual("Pd", $P);
+   $result .= "assert(Pd == P)\n";
+   $result .= "assert(isEmpty Pd === isEmpty P)\n";
+   $result .= "assert(isCompact Pd === isCompact P)\n";
+   $result .= "assert(isLatticePolytope Pd === isLatticePolytope P)\n";
+   if($P->BOUNDED){
+      $result .= "assert(isNormal Pd === isNormal P)\n";
+   }
+   $result .= "assert(numColumns vertices Pd == numColumns vertices P)\n";
+   $result .= "assert(numColumns rays Pd == numColumns rays P)\n";
+   $result .= "assert(numColumns linealitySpace Pd == numColumns linealitySpace P)\n";
+   $result .= "facetsP = facets P;\n";
+   $result .= "facetsPd = facets Pd;\n";
+   $result .= "assert(numRows (facetsPd#0) == numRows (facetsP#0))\n";
+   $result .= "assert(numRows (facetsPd#1) == numRows (facetsP#1))\n";
+   $result .= "hyperplanesP = hyperplanes P;\n";
+   $result .= "hyperplanesPd = hyperplanes Pd;\n";
+   $result .= "assert(numRows (hyperplanesPd#0) == numRows (hyperplanesP#0))\n";
+   $result .= "assert(numRows (hyperplanesPd#1) == numRows (hyperplanesP#1))\n";
+   $result .= test_wrapper_end();
+   return $result;
+}
+
+user_function mainRepresentationTest(){
+   my @polytopeFiles = `grep -R "polytope::Polytope&lt;Rational&gt;" /home/lars/polymake-source/apps/polytope/testsuite`;
+   my @polytopes = map{
+      my $file = $_;
+      my $bla = 0;
+      eval {
+         my @split = split(":",$file);
+         $bla = User::load($split[0]);
+      };
+   }@polytopeFiles;
+   print "Loaded ".(scalar @polytopes)." polytopes.\n";
+   @polytopes = grep{
+      my $P = $_;
+      my @props = $P->list_properties();
+      my $test = (1 == (scalar grep($_ eq "CONE_AMBIENT_DIM", @props)));
+      $test |= (1 == (scalar grep($_ eq "POINTS", @props)));
+      $test |= (1 == (scalar grep($_ eq "VERTICES", @props)));
+      $test
+   }@polytopes;
+   print "Remaining are ".(scalar @polytopes)." polytopes.\n";
+   print "Done\n";
+   @polytopes = grep{$_ != 0}@polytopes;
+   use List::Util qw( min max );
+   print "Hello.\n";
+   open(FILE, ">/home/lars/representation_tests_raw.m2");
+   print "Hello.\n";
+   foreach my $P (@polytopes){
+      # eval{
+            print FILE representation_test($P);
+      #};
+   }
+   close(FILE);
 }
