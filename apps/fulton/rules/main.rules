@@ -86,3 +86,42 @@ user_function spoly_variant( $ , $ , $ ){
    my $kg = new Polynomial((new Matrix<Int>($multg->minor(All,~[0]))), $multg->col(0),$r);
    return $kg * $f - $kf * $g;
 }
+
+object NormalToricVariety {
+   
+   property ISOLATED : Bool;
+
+   rule ISOLATED : HASSE_DIAGRAM, FAN_DIM, RAYS, LINEALITY_SPACE {
+      my $hd = $this->HASSE_DIAGRAM;
+      my $frays = $this->RAYS;
+      my $flineality = $this->LINEALITY_SPACE;
+      my $d = $this->FAN_DIM;
+      print "Hello.\n";
+      my @already_tested = ();
+      my $result = 1;
+      for(my $i=$d-2; $i>0; $i--){
+         my @cones = @{$hd->nodes_of_dim($i)};
+         foreach my $cone (@cones){
+            my $rayIndices = $hd->FACES->[$cone];
+            my $test = grep(($_ * $rayIndices)->size() == $rayIndices->size(), @already_tested);
+            if($test > 0){next;}
+            my $crays = $frays->minor($rayIndices, All);
+            my $honestCone;
+            if($flineality->rows>0){
+               $honestCone = new Cone(INPUT_RAYS=>$crays, INPUT_LINEALITY=>$flineality);
+            } else {
+               $honestCone = new Cone(INPUT_RAYS=>$crays);
+            }
+            print "Checking smoothness.\n";
+            if(!$honestCone->SMOOTH_CONE){
+               $result = 0;
+               last;
+            }
+            push @already_tested, $rayIndices;
+         }
+         if(!$result){last;}
+      }
+      $this->ISOLATED = $result;
+   }
+
+}

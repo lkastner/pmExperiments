@@ -12,6 +12,10 @@ $d2coeff = new Vector<Integer>(0,-1,0,0,0,0);
 $d2 = $tv->add("DIVISOR", COEFFICIENTS=>$d2coeff);
 $cmind2 = $tv->add("DIVISOR", COEFFICIENTS=>$ccoeff - $d2coeff);
 $cmind1 = $tv->add("DIVISOR", COEFFICIENTS=>$ccoeff - $d1coeff);
+print $tv->singular_exti_dimension(4, $d1, $cmind2);
+print $tv->singular_exti_dimension(4, $d2, $cmind1);
+
+
 print $tv->singular_exti_dimension(1, $d1, $cmind2);
 print $tv->singular_exti_dimension(1, $d2, $cmind1);
 print $tv->singular_exti_dimension(2, $d1, $cmind2);
