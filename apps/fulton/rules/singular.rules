@@ -79,7 +79,7 @@ object_specialization NormalToricVariety::AffineNormalToricVariety {
       load_singular_library("homolog.lib");
       singular_eval("module M = Tor(".$i.", syz_".$syzygies1.", syz_".$syzygies2.");");
       singular_eval("M = std(M);");
-      singular_eval("int d = vdim(M);");
+      singular_eval("int d = dim(M);");
       singular_eval("int vd = vdim(M);");
       return new Vector(singular_get_var("d"), singular_get_var("vd"));
    }
