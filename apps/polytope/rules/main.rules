@@ -20,6 +20,7 @@
 INCLUDE
    deformations.rules
    m2test.rules
+   benjamin.rules
 
 object Polytope<Rational> {
 

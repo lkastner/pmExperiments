@@ -1,0 +1,49 @@
+object Ideal {
+   
+   user_method initial_ideal_for_weight( Vector ){
+      my($I, $w) = @_;
+      my $G = $I->add("GROEBNER", ORDER_VECTOR=>$w);
+      my @result = ();
+      for my $p (@{$G->BASIS}){
+         my $init = get_initial_term($p, $w);
+         push @result, $init;
+      }
+      return new Ideal(GENERATORS=>\@result);
+   }
+
+}
+
+sub find_max_degree{
+   my($test) = @_;
+   my $result = $test->[0];
+   for my $entry (@$test){
+      $result = $entry > $result ? $entry : $result;
+   }
+   return $result;
+}
+
+sub find_max_indices{
+   my($exp, $w) = @_;
+   my $test = $exp * $w;
+   my $deg = find_max_degree($test);
+   my @result = ();
+   for(my $i = 0; $i<$test->dim; $i++){
+      if($test->[$i] == $deg){
+         push @result, $i;
+      }
+   }
+   return @result;
+}
+
+sub get_initial_term{
+   my($p, $w) = @_;
+   my $q = new Polynomial($p);
+   my $exp = dense($q->monomials_as_matrix());
+   my $coeffs = $p->coefficients_as_vector();
+   my @indices = find_max_indices($exp, $w);
+   my $newCoeffs = new Vector([@{$coeffs}[@indices]]);
+   my $newExp = new Matrix([@{$exp}[@indices]]);
+   return new Polynomial((new Matrix<Int>($newExp)), $newCoeffs, $p->get_ring);
+}
+
+
