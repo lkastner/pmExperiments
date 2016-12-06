@@ -1,6 +1,6 @@
 application "fulton";
 
-$c = new Cone(INPUT_RAYS=>[[1,0,1],[1,1,0],[1,2,0],[1,1,1],[1,0,2]]);
+$c = new Cone(INPUT_RAYS=>[[1,0,0],[1,0,1],[1,1,0],[1,1,1]]);
 $dc = new Cone(INPUT_RAYS=>$c->FACETS);
 $tv = new NormalToricVariety($dc);
 print $tv->ISOLATED; # Is isolated
@@ -18,6 +18,8 @@ $div2Coeff = new Vector(-5,0,0,0);
 $div2 = $tv->add("DIVISOR", COEFFICIENTS=>$div2Coeff);
 $kmd1 = $tv->add("DIVISOR", COEFFICIENTS=>$canonicalCoeff - $div1Coeff);
 $kmd2 = $tv->add("DIVISOR", COEFFICIENTS=>$canonicalCoeff - $div2Coeff);
+$d1mk = $tv->add("DIVISOR", COEFFICIENTS=> - $canonicalCoeff + $div1Coeff);
+$d2mk = $tv->add("DIVISOR", COEFFICIENTS=> - $canonicalCoeff + $div2Coeff);
 print $tv->singular_exti_dimension(2, $div1, $kmd2);
 print $tv->singular_exti_dimension(2, $div2, $kmd1);
 
@@ -25,7 +27,9 @@ print $tv->singular_exti_dimension(3, $div2, $kmd1);
 print $tv->singular_exti_dimension(3, $div1, $kmd2);
 
 print $tv->singular_exti_dimension(4, $div1, $kmd2);
+print $tv->singular_exti_dimension(4, $div1, $d2mk);
 print $tv->singular_exti_dimension(4, $div2, $kmd1);
+print $tv->singular_exti_dimension(4, $div2, $d1mk);
 print $tv->singular_tori_dimension(1, $div2, $div1);
 
 print $tv->singular_exti_dimension(5, $div1, $kmd2);
