@@ -1,0 +1,52 @@
+user_function check_finiteness_rational(Matrix, Matrix){
+   my($facets, $given) = @_;
+   my $nextVert = $given;
+   my $test = 1;
+   my @result = ();
+   while($test){
+      $test = 0;
+      print "Have ",$nextVert->rows," vertices.\n";
+      my $volPoly = new Polytope(POINTS=>$nextVert);
+      my $volume = ceil(1000000*($volPoly->VOLUME));
+      print "Volume is ",$volume,"\n";
+      my $nextPoly = next_intersection($facets,$nextVert);
+      my @equivalents = grep(are_equivalent($facets, $nextPoly, $_), @result);
+      my $equivalents = @equivalents;
+      if($equivalents == 0){
+         $test = 1;
+         print "Remembering.\n";
+         push @result, $nextPoly;
+      }
+      else { print "Dropping. ",join(" ",@equivalents),"\n";}
+      if($test){
+         $nextVert = new Polytope(INEQUALITIES=>$nextPoly|$facets);
+         $nextVert = $nextVert->VERTICES;
+         my @a = grep($_->[0] == 1, @$nextVert);
+         $nextVert = new Matrix(@a);
+      }
+   }
+   return @result;
+}
+
+sub next_intersection{
+   my($facets, $points) = @_;
+   my @result;
+   my $gens = $points->minor(All, ~[0]);
+   $gens = -$gens * transpose($facets);
+   return componentwise_minimum($gens);
+}
+
+sub componentwise_minimum{
+   my($vectors) = @_;
+   my @columns = @{transpose($vectors)};
+   my @maxValues = map(minimum($_), @columns);
+   return new Vector(@maxValues);
+}
+
+sub are_equivalent{
+   my($facets, $d1, $d2) = @_;
+   my $eq = ($d1-$d2 | $facets);
+   my $ineq = new Matrix(unit_vector($facets->cols+1,0));
+   my $p = new Polytope(EQUATIONS=>$eq, INEQUALITIES=>$ineq);
+   return $p->N_VERTICES == 1;
+}
