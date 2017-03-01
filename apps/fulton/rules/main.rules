@@ -1,4 +1,4 @@
-#  Copyright (c) 2012
+#  Copyright (c) 2012-2017
 #  by authors as mentioned on:
 #  https://github.com/lkastner/polymake_toric/wiki/Authors
 #  
@@ -35,26 +35,26 @@ INCLUDE
    hilberttest.rules
 #   t1.rules
 
-# user_function testing(Cone, Vector, Vector){
-#   my($c, $v1, $v2) = @_;
-#   my $H = $c->HILBERT_BASIS_GENERATORS->[0];
-#   my $F = $c->FACETS;
-#   if($v1->dim != $F->rows){ die "Wrong number of entries.";}
-#
-#   my $P1 = new Polytope(INEQUALITIES => (-$v1 | $F));
-#   my $P2 = new Polytope(INEQUALITIES => (-$v2 | $F));
-#
-#   my $C1 = new Cone($P1);
-#   my $C2 = new Cone($P2);
-#
-#   my $gen1 = new Matrix( grep($_->[0] == 1, @{$C1->HILBERT_BASIS_GENERATORS->[0]}));
-#   my $gen2 = new Matrix( grep($_->[0] == 1, @{$C2->HILBERT_BASIS_GENERATORS->[0]}));
-#
-#   $gen1 = $gen1->minor(All, ~[0]);
-#   $gen2 = $gen2->minor(All, ~[0]);
-#
-#   my $toric = $c->TORIC_IDEAL->BINOMIAL_GENERATORS;
-# }
+user_function testing(Cone, Vector, Vector){
+  my($c, $v1, $v2) = @_;
+  my $H = $c->HILBERT_BASIS_GENERATORS->[0];
+  my $F = $c->FACETS;
+  if($v1->dim != $F->rows){ die "Wrong number of entries.";}
+
+  my $P1 = new Polytope(INEQUALITIES => (-$v1 | $F));
+  my $P2 = new Polytope(INEQUALITIES => (-$v2 | $F));
+
+  my $C1 = new Cone($P1);
+  my $C2 = new Cone($P2);
+
+  my $gen1 = new Matrix( grep($_->[0] == 1, @{$C1->HILBERT_BASIS_GENERATORS->[0]}));
+  my $gen2 = new Matrix( grep($_->[0] == 1, @{$C2->HILBERT_BASIS_GENERATORS->[0]}));
+
+  $gen1 = $gen1->minor(All, ~[0]);
+  $gen2 = $gen2->minor(All, ~[0]);
+
+  my $toric = $c->TORIC_IDEAL->BINOMIAL_GENERATORS;
+}
 
 user_function spoly_variant( $ , $ , $ ){
    my($r, $f, $g) = @_;
