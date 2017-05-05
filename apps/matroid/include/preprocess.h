@@ -46,7 +46,7 @@ namespace polymake { namespace matroid{
       ListMatrix<SparseVector<Integer> > grep_smaller_elements_from_map(const Vector<Integer>& facetValues, const objmap& reductors){
          ListMatrix< SparseVector<Integer> > smaller(0, conesFacetValues.rows());
          Entire<objmap>::const_iterator it = entire(reductors);
-         while (!it.at_end() && it->first <= facetValues) {
+         while (!it.at_end() && -1 == lex_compare(it->first, facetValues)) {
             // cout << "testing " << it->first << " - " << facetValues;
             if (find_in_range_if(entire(attach_operation(it->first,facetValues,operations::gt())),operations::non_zero()).at_end()) {
                // cout << " smaller!!!111elf" << endl;

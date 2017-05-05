@@ -25,6 +25,9 @@ namespace polymake { namespace perl_bindings {
    template <typename T>
    RecognizeType4perl("Polymake::matroid::Preprocessor", (), polymake::matroid::Preprocessor)
 
+   template <typename T>
+   RecognizeType4perl("Polymake::matroid::Preprocessor", (), polymake::matroid::Preprocessor)
+
 ///==== Automatically generated contents end here.  Please do not delete this line. ====
 } }
 
