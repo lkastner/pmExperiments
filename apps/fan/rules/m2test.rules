@@ -47,13 +47,16 @@ sub normal_fan_test_wrapper{
 	my($P) = @_;
 	my $name = "ambDim: ".$P->AMBIENT_DIM.", dim: ".$P->DIM.", nvert: ".$P->N_VERTICES;
 	print "Hello!\n";
-	my $result = test_wrapper_start("normal_fan + several booleans", $name);
-	print $result,"\n";
-	$result .= normal_fan_test($P);
-	print $result,"\n";
-	$result .= test_wrapper_end();
-	print $result;
-	return $result;
+   my $content = normal_fan_test($P);
+   return wrap_test("normal_fan + several booleans", $name, $content);
+}
+
+sub wrap_test{
+   my($task, $name, $content) = @_;
+   my $result = test_wrapper_start($task, $name);
+   $result .= $content;
+   $result .= test_wrapper_end();
+   return $result;
 }
 
 user_function mainNormalFanTest(){
@@ -91,4 +94,64 @@ user_function mainNormalFanTest(){
       $i++;
    }
    close(FILE);
+}
+
+sub fan_test{
+   my($F) = @_;
+   my $result = fan_to_m2("F", $F);
+   $result .= "assert(dim F ==";
+   $result .= $F->DIM.")\n";
+   $result .= "assert(ambDim F ==";
+   $result .= $F->AMBIENT_DIM.")\n";
+   $result .= "assert(#(maxCones F) ==";
+   $result .= $F->N_MAXIMAL_CONES.")\n";
+   $result .= "assert(";
+   $result .= $F->SMOOTH_FAN ? "" : "not ";
+   $result .= "isSmooth F)\n";
+   $result .= "assert(";
+   $result .= $F->PURE ? "" : "not ";
+   $result .= "isPure F)\n";
+   $result .= "assert(";
+   $result .= $F->SIMPLICIAL ? "" : "not ";
+   $result .= "isSimplicial F)\n";
+   $result .= "assert(";
+   $result .= $F->COMPLETE ? "" : "not ";
+   $result .= "isComplete F)\n";
+   $result .= "assert(fVector F == {1, ";
+   $result .= join(", ", @{$F->F_VECTOR})."})\n";
+   $result .= "assert(";
+   $result .= $F->REGULAR ? "" : "not ";
+   $result .= "isPolytopal F)\n";
+	return $result;
+}
+
+user_function mainFanTest(){
+   my @fanFiles = `grep -R "fan::PolyhedralFan&lt;Rational&gt;" /home/lars/polymake-source/apps/fan/testsuite`;
+   open(FILE, ">/home/lars/fan_tests_raw.m2");
+   print $fanFiles[12],"\n";
+	my @fans = map{
+      my $file = $_;
+      my $bla = 0;
+      eval {
+         my @split = split(":",$file);
+         $bla = User::load($split[0]);
+      };
+   }@fanFiles;
+   @fans = grep($_->MAXIMAL_CONES->cols > 0, @fans);
+   @fans = grep($_->LINEALITY_DIM == 0, @fans);
+	my $n = @fans;
+	print "Have ",$n," fans\n";
+   my $i = 0;
+   foreach my $fan (@fans){
+      print "------------------\n";
+      eval{
+         $fan->properties();
+			my $test = fan_test($fan);
+	      my $name = "ambDim: ".$fan->AMBIENT_DIM.", dim: ".$fan->DIM.", nrays: ".$fan->N_RAYS.", n_max_cones: ".$fan->N_MAXIMAL_CONES;
+         $test = wrap_test("misc tests for fan", $name, $test);
+			print FILE $test;
+      };
+      print $i,"\n";
+      $i++;
+   }
 }
