@@ -1,2 +1,3 @@
 INCLUDE
    m2test.rules
+   sanity.rules

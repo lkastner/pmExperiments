@@ -1,0 +1,36 @@
+user_function mainFanSanityCheck(){
+   my @fanFiles = `grep -R "fan::PolyhedralFan&lt;Rational&gt;" ~/polymake-source/apps/fan/testsuite`;
+   @fanFiles = grep($_ !~ m/REGULAR/, @fanFiles);
+   foreach my $file (@fanFiles){
+      eval {
+         my @split = split(":",$file);
+         my $fan = User::load($split[0]);
+         $fan->dont_save;
+         $fan = new PolyhedralFan($fan);
+         if(($fan->MAXIMAL_CONES->cols > 0) && ($fan->LINEALITY_DIM == 0)){
+            print $split[0],"\n";
+            my @props = $fan->list_properties;
+            @props = grep($_ !~ m/PSEUDO_REGULAR/, @props);
+            @props = grep($_ !~ m/REGULAR/, @props);
+            @props = grep($_ !~ m/COMPLETE/, @props);
+            @props = grep($_ !~ m/DUAL_GRAPH/, @props);
+            @props = grep($_ !~ m/INPUT_RAYS/, @props);
+            @props = (@props, "FAN_DIM", "F_VECTOR");
+            # print join(",", @props),"\n";
+            my $newFan = new PolyhedralFan(RAYS=>$fan->RAYS, LINEALITY_SPACE=>$fan->LINEALITY_SPACE, MAXIMAL_CONES=>$fan->MAXIMAL_CONES);
+            foreach my $prop (@props){
+               # print "Checking: ",$prop,"\n";
+               my $old = $fan->give($prop);
+               my $new = $newFan->give($prop);
+               if($old != $new){
+                  # print $split[0]," - ",$prop,"\n";
+                  print $prop,"\n";
+                  print "Old: ",$old,"\nNew: ",$new,"\n";
+               }
+            }
+            print "\n------------------------------------------------------------";
+         }
+      };
+   }
+}
+
