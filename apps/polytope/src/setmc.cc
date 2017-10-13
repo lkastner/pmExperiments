@@ -32,6 +32,14 @@ namespace polymake {
 namespace polytope {
 namespace {
 
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+
+
+
 int EC = 0;
 
 Matrix<int> get_init_matrix(int dim);
@@ -47,7 +55,41 @@ int scalp(Vector<int> a, Vector<int> b);
 Vector<int> tof3(Vector<int> a);
 Matrix<int> points_on_hyperplane(Matrix<int> given, Vector<int> normal, int val);
 perl::ListReturn find_worst_hyperplane(Matrix<int> given);
+void do_stuff();
 
+
+class Optimizer {
+   private:
+      int dim;
+      Map<Vector<int>, int> vector2number;
+      Map<int, Vector<int>> number2vector;
+
+      int init(Vector<int> current, int pos, int count){
+         if(pos == dim){
+            cout << current << std::endl;
+            Vector<int> key(current);
+            vector2number[key] = count;
+            number2vector[count] = key;
+            count++;
+         } else {
+            for(int i=0; i<3; i++){
+               current[pos] = i;
+               count = init(current, pos+1, count);
+            }
+         }
+         return count;
+      }
+
+   public:
+      Optimizer(int n) : dim(n){
+         Vector<int> start(dim);
+         init(start, 0, 0);
+      }
+};
+
+void do_stuff(){
+   Optimizer o(3);
+}
 
 int compare_lex(Vector<int> a, Vector<int> b){
    Vector<int> diff = a - b;
@@ -746,7 +788,12 @@ Matrix<int> finish_inverse_set(int dim){
 }
 
 
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 } // namespace
+
+Function4perl(&do_stuff, "do_stuff");
 
 Function4perl(&get_init_reverse_set, "get_init_reverse_set");
 
