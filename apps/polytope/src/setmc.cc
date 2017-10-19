@@ -1,4 +1,4 @@
-/* Copyright (c) 1997-2015
+/* Copyright (c) 1997-2017
    Ewgenij Gawrilow, Michael Joswig (Technische Universitaet Berlin, Germany)
    http://www.polymake.org
 
@@ -23,6 +23,8 @@
 #include "polymake/Array.h"
 #include "polymake/Set.h"
 #include "polymake/Map.h"
+#include "map"
+#include "polymake/linalg.h"
 #include "polymake/vector"
 #include "polymake/PowerSet.h"
 #include "polymake/common/lattice_tools.h"
@@ -36,6 +38,8 @@ namespace {
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wunused-private-field"
+#pragma clang diagnostic ignored "-Wreorder"
 #endif
 
 
@@ -55,41 +59,21 @@ int scalp(Vector<int> a, Vector<int> b);
 Vector<int> tof3(Vector<int> a);
 Matrix<int> points_on_hyperplane(Matrix<int> given, Vector<int> normal, int val);
 perl::ListReturn find_worst_hyperplane(Matrix<int> given);
-void do_stuff();
 
-
-class Optimizer {
-   private:
-      int dim;
-      Map<Vector<int>, int> vector2number;
-      Map<int, Vector<int>> number2vector;
-
-      int init(Vector<int> current, int pos, int count){
-         if(pos == dim){
-            cout << current << std::endl;
-            Vector<int> key(current);
-            vector2number[key] = count;
-            number2vector[count] = key;
-            count++;
-         } else {
-            for(int i=0; i<3; i++){
-               current[pos] = i;
-               count = init(current, pos+1, count);
-            }
-         }
-         return count;
-      }
-
-   public:
-      Optimizer(int n) : dim(n){
-         Vector<int> start(dim);
-         init(start, 0, 0);
-      }
-};
-
-void do_stuff(){
-   Optimizer o(3);
+void vectorMod3(Vector<int>& b){
+   for(int i=0; i<b.dim(); i++){
+      b[i] %= 3;
+      b[i] += 3;
+      b[i] %= 3;
+   }
 }
+
+Vector<int> get_third_on_line(Vector<int> a, Vector<int> b){
+   Vector<int> result = -a-b;
+   vectorMod3(result);
+   return result;
+}
+
 
 int compare_lex(Vector<int> a, Vector<int> b){
    Vector<int> diff = a - b;
@@ -699,15 +683,6 @@ Matrix<int> get_init_matrix(int dim){
    return result;
 }
 
-Vector<int> get_third_on_line(Vector<int> a, Vector<int> b){
-   Vector<int> result = -a-b;
-   int i;
-   for(i=0; i<result.dim(); i++){
-      result[i] += 6;
-      result[i] %= 3;
-   }
-   return result;
-}
    
 Matrix<int> run_monte_carlo_try(Matrix<int> selected){
    SetGame set = SetGame(selected, unit_matrix<int>(6));
@@ -792,8 +767,6 @@ Matrix<int> finish_inverse_set(int dim){
 #pragma clang diagnostic pop
 #endif
 } // namespace
-
-Function4perl(&do_stuff, "do_stuff");
 
 Function4perl(&get_init_reverse_set, "get_init_reverse_set");
 

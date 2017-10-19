@@ -21,5 +21,17 @@ namespace polymake { namespace polytope { namespace {
    }
    FunctionWrapperInstance4perl( void () );
 
+   FunctionWrapper4perl( void (int) ) {
+      perl::Value arg0(stack[0]);
+      IndirectWrapperReturnVoid( arg0 );
+   }
+   FunctionWrapperInstance4perl( void (int) );
+
+   FunctionWrapper4perl( void (pm::Matrix<int>) ) {
+      perl::Value arg0(stack[0]);
+      IndirectWrapperReturnVoid( arg0.get< perl::TryCanned< const Matrix< int > > >() );
+   }
+   FunctionWrapperInstance4perl( void (pm::Matrix<int>) );
+
 ///==== Automatically generated contents end here.  Please do not delete this line. ====
 } } }
