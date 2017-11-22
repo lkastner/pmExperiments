@@ -28,6 +28,9 @@
 #include "polymake/vector"
 #include "polymake/PowerSet.h"
 #include "polymake/common/lattice_tools.h"
+#include "polymake/group/permlib.h"
+#include "polymake/polytope/LRUCache.h"
+
 
 
 namespace polymake {
@@ -41,6 +44,8 @@ namespace {
 #pragma clang diagnostic ignored "-Wunused-private-field"
 #pragma clang diagnostic ignored "-Wreorder"
 #endif
+
+typedef polymake::group::PermlibGroup PLG;
 
 Matrix<int> f3inverse(Matrix<int> in){
    Matrix<Rational> tmp(in);
@@ -81,6 +86,30 @@ Vector<int> get_third_on_line(Vector<int> a, Vector<int> b){
    return result;
 }
 
+// Copypasta from 
+// polymake-source/apps/group/include/named_groups.h 
+Array<Array<int>>
+symmetric_group_gens(int n) {
+   Array<Array<int>> sgs(n-1);
+   for (int i = 0; i < n-1; ++i) {
+      Array<int> gen(n);
+      for (int j = 0; j < n; ++j)
+         gen[j] = j;
+      std::swap(gen[i], gen[i+1]);
+      sgs[i] = gen;
+   }
+   return sgs;
+}
+
+// Convert vector indicating a permutation to corresponding matrix.
+Matrix<int> vector2matrix(const Vector<int> perm){
+   Matrix<int> A(perm.dim(), perm.dim());
+   for(int i=0; i<perm.dim(); i++){
+      A(i, perm[i]) = 1;
+   }
+   return A;
+}
+
 
 class MappingData {
    private:
@@ -88,6 +117,7 @@ class MappingData {
       Map<Vector<int>, int> vector2number;
       Map<int, Vector<int>> number2vector;
       Set<Vector<int>> vectors, nonZeroVectors;
+      PLG plg;
       
       void get_vectors(Vector<int> current, int pos){
          if(pos == dim){
@@ -132,10 +162,31 @@ class MappingData {
          }
       }
 
+      
+      void init_permlib(){
+         Array<Array<int>> gens(symmetric_group_gens(dim));
+         plg = PLG(gens);
+      }
+      
    public:
+
       MappingData(int n): dim(n){
          init_conversions();
+         init_permlib();
       }
+       
+       std::list<Matrix<int>> permlib_find_stabilizer(const Vector<int>& signature) const{
+         cout << "Signature: " << signature << endl;
+         PLG stab = plg.vector_stabilizer(signature);
+         std::vector<pm::Array<int>> gp = polymake::group::all_group_elements_impl(stab);
+         cout << "Permlib did its job." << endl;
+         std::list<Matrix<int>> result;
+         for(const auto& g: gp){
+            result.push_back(vector2matrix(Vector<int>(g)));
+         }
+         return result;
+      }
+
 
       const Map<Vector<int>, int>& get_vector2number() const{
          return vector2number;
@@ -152,39 +203,41 @@ class MappingData {
       const Set<Vector<int>>& get_nonZeroVectors() const{
          return nonZeroVectors;
       }
+
+      int get_dim() const{
+         return dim;
+      }
+
+      int get_npoints() const {
+         return vectors.size();
+      }
    
 };
 
 class Cap {
    private:
+      const MappingData& md;
       Set<int> occupied;
-      Vector<int> linesThroughPoints;
-      const Map<Vector<int>, int>& vector2number;
-      const Map<int, Vector<int>>& number2vector;
+      Vector<int> linesThroughPoints, pointsOnHyperplanes;
 
    public:
-      Cap(const Map<Vector<int>, int>& v2n,
-      const Map<int, Vector<int>>& n2v):
-         vector2number(v2n), number2vector(n2v),
-            linesThroughPoints(v2n.size()){
-         }
 
-      Cap(const MappingData& md): 
-         vector2number(md.get_vector2number()), number2vector(md.get_number2vector()),
-            linesThroughPoints(md.get_vector2number().size()){
+      Cap(const MappingData& md_in): 
+         md(md_in),
+            linesThroughPoints(md_in.get_npoints()), pointsOnHyperplanes(3*md_in.get_npoints()){
          }
 
       Cap(Set<int> o,
          Vector<int> ltp,
-         const MappingData& md): occupied(o), linesThroughPoints(ltp), 
-         vector2number(md.get_vector2number()), number2vector(md.get_number2vector()){
+         Vector<int> poh,
+         const MappingData& md_in): occupied(o), linesThroughPoints(ltp), pointsOnHyperplanes(poh), md(md_in){
          }
 
       Cap mutate(const Matrix<int>& A, const Vector<int>& b){
-         Cap result(vector2number, number2vector);
+         Cap result(md);
          Vector<int> s;
          for(const auto& e: occupied){
-            s = number2vector[e];
+            s = md.get_number2vector()[e];
             s = (A*s) + b;
             vectorMod3(s);
             result.select(s);
@@ -195,7 +248,7 @@ class Cap {
       Vector<int> hyperplane_indicator(const Vector<int>& h) const{
          Vector<int> result(3);
          for(const auto& o: occupied){
-            int eval = h * number2vector[o];
+            int eval = h * md.get_number2vector()[o];
             eval %= 3;
             eval += 3;
             eval %= 3;
@@ -206,34 +259,80 @@ class Cap {
          return result;
       }
 
-      Cap get_subcap(const Vector<int>& h, const int& val) const {
-         return Cap(vector2number, number2vector);
-      }
-
       void select(const Vector<int>& v){
          for(const auto& j: occupied){
-            const Vector<int>& third = get_third_on_line(v, number2vector[j]);
-            linesThroughPoints[vector2number[third]]++;
+            const Vector<int>& third = get_third_on_line(v, md.get_number2vector()[j]);
+            linesThroughPoints[md.get_vector2number()[third]]++;
          }
-         occupied += vector2number[v];
+         // for(int i=0; i<md.get_npoints(); i++){
+         //    int val = (md.get_number2vector()[i]) * v;
+         //    val %= 3;
+         //    val += 3;
+         //    val %= 3;
+         //    pointsOnHyperplanes[3*i+val]++;
+         // }
+         occupied += md.get_vector2number()[v];
+      }
+
+      void select(const int n){
+         select(md.get_number2vector()[n]);
       }
       
       void unselect(const Vector<int>& v){
-         occupied -= vector2number[v];
+         occupied -= md.get_vector2number()[v];
          for(const auto& j: occupied){
-            const Vector<int>& third = get_third_on_line(v, number2vector[j]);
-            linesThroughPoints[vector2number[third]]--;
+            const Vector<int>& third = get_third_on_line(v, md.get_number2vector()[j]);
+            linesThroughPoints[md.get_vector2number()[third]]--;
          }
+         // for(int i=0; i<md.get_npoints(); i++){
+         //    int val = (md.get_number2vector()[i]) * v;
+         //    val %= 3;
+         //    val += 3;
+         //    val %= 3;
+         //    pointsOnHyperplanes[3*i+val]--;
+         // }
       }
 
-      void print(){
+      void print_hyperplane_arrangement() const{
+         for(int i=0; i<md.get_npoints(); i++){
+            const Vector<int>& hyp = (md.get_number2vector()[i]);
+            cout << hyp << ": ";
+            Vector<int> result(hyperplane_indicator(hyp));
+            cout << result << endl;
+         }
+      }
+      
+      void unselect(const int n){
+         unselect(md.get_number2vector()[n]);
+      }
+
+      bool checkBound(const int& b){
+         // Something is wrong here.
+         for(const auto& e: pointsOnHyperplanes){
+            if(e>b){
+               print();
+               cout << e << endl;
+               cout << "Bound violated." << endl;
+               return false;
+            }
+         }
+         return true;
+      }
+
+      void print() const{
          for(const auto& e: occupied){
             cout << e << " ";
          }
          cout << endl;
-         for(const auto& e: linesThroughPoints){
-            cout << e << " ";
+         for(const auto& e: occupied){
+            cout << (md.get_number2vector()[e]) << ", ";
          }
+         cout << endl;
+         // for(const auto& e: linesThroughPoints){
+         //    cout << e << " ";
+         // }
+         // cout << endl;
+         cout << signature() << endl;
          cout << endl;
       }
 
@@ -245,9 +344,166 @@ class Cap {
          return result;
       }
 
+      void batch_select(const Set<int>& o){
+         occupied.clear();
+         linesThroughPoints = Vector<int>(md.get_npoints());
+         for(const auto& no: o){
+            select(no);
+         }
+      }
+
+      Vector<int> get_ith_filter(const int i) const{
+         Vector<int> result(3);
+         for(const auto& o : occupied){
+            result[md.get_number2vector()[o][i]]++;
+         }
+         return result;
+      }
+
+      bool isValid() const{
+         Vector<int> v;
+         for(int i=0; i<md.get_dim(); i++){
+            v = get_ith_filter(i);
+            if(v[0] < v[1]) return false;
+            if(v[1] < v[2]) return false;
+         }
+         return true;
+      }
+
+      Set<int> get_free_points() const{
+         Set<int> result;
+         for(int i=0; i<linesThroughPoints.dim(); i++){
+            if(linesThroughPoints[i] == 0){
+               result += i;
+            }
+         }
+         result -= occupied;
+         return result;
+      }
+      
+      Array<Vector<int>> signature() const{
+         Array<Vector<int>> result(md.get_dim());
+         for(int i=0; i<md.get_dim(); i++){
+            result[i] = get_ith_filter(i);
+         }
+         return result;
+      }
+
+      Vector<int> signature_vector() const{
+         Array<Vector<int>> sig(signature());
+         Vector<int> result(sig.size());
+         int counter=0;
+         for(int i=1; i<sig.size(); i++){
+            if(sig[i] != sig[i-1]){
+               counter++;
+            }
+            result[i] = counter;
+         }
+         return result;
+      }
+
+      Vector<int> get_permutation() const{
+         Vector<int> start(range(0,md.get_dim()-1));
+         Array<Vector<int>> F(signature());
+         // cout << "Before: " << F << endl;
+         std::sort(start.begin(), start.end(),[&](const int& a, const int& b) {
+            return lex_compare(F[a], F[b]) == -1;
+         });
+         // cout << "After: " << start << endl;
+         return start;
+      }
+
+      Set<int> apply_matrix_to_pts(const Matrix<int> A) const{
+         Set<int> newp;
+         for(const auto& o: occupied){
+            newp += md.get_vector2number()[A*(md.get_number2vector()[o])];
+         }
+         return newp;
+      }
+
+      void apply_matrix_transform(const Matrix<int> A){
+         batch_select(apply_matrix_to_pts(A));
+      }
+
+      void canonicalize() {
+         Vector<int> perm = get_permutation();
+         Matrix<int> A(vector2matrix(perm));
+         // cout << "Transform: " << endl;
+         // cout << A << endl;
+         apply_matrix_transform(A);
+         // std::list<Matrix<int>> stab(md.permlib_find_stabilizer(signature_vector()));
+         // cout << "Stab ok." << endl;
+         // Map<Set<int>, Matrix<int>> sorted;
+         // for(const auto& B : stab){
+         //    cout << "B: " << B << endl;
+         //    Set<int> key(apply_matrix_to_pts(B));
+         //    sorted[key] = B;
+         // }
+      }
+
+      Cap predecessor() const{
+         Cap result(md);
+         result.batch_select(get_content());
+         result.canonicalize();
+         // cout << "Pred: " << result.get_content() << endl;
+         // cout << "Last: " << result.get_content().back() << endl;
+         int back = result.get_content().back();
+         result.unselect(back);
+         result.canonicalize();
+         return result;
+      }
+
       const Set<int>& get_content() const{
          return occupied;
       }
+
+      // const MappingData& get_md() const{
+      //    return md;
+      // }
+
+      // Cap(const Cap &c):md(c.get_md()){
+      //    batch_select(c.get_content());
+      // }
+
+      Cap & operator= (const Cap & other){
+         if (this != &other){ // protect against invalid self-assignment
+            this->batch_select(other.get_content());
+         }
+         return *this;
+      }
+
+      std::vector<Cap> get_children() const{
+         std::vector<Cap> result;
+         Set<Array<Vector<int>>> signatures;
+         int last = occupied.back();
+         const Set<int> free = get_free_points();
+         for(const auto& f:free){
+            if(f > last){
+               // cout << "f: " << f << " - " << (md.get_number2vector()[f]) << endl;
+               Cap candidate(md);
+               candidate.batch_select(get_content());
+               candidate.select(f);
+               candidate.canonicalize();
+               if(signatures.contains(candidate.signature())){
+                  // cout << "Hello." << endl;
+               } else {
+                  signatures += candidate.signature();
+                  result.push_back(candidate);
+                  // if(candidate.isValid()){
+                  //    result.push_back(candidate);
+                  // } else {
+                  //    // cout << "Invalid candidate." << endl;
+                  // }
+               }
+            }
+         }
+         return result;
+      }
+
+      int size() const{
+         return occupied.size();
+      }
+
       
 };
       
@@ -260,96 +516,8 @@ class Optimizer {
       int dim, multCount;
       const Map<Vector<int>, int>& vector2number;
       const Map<int, Vector<int>>& number2vector;
-      Map<int, Map<int, std::pair<Matrix<int>, Vector<int>>>> switchTable;
       const Set<Vector<int>>& vectors, nonZeroVectors;
       Map<int, Set<int>> supports;
-
-
-      void init_switchTable(){
-         Matrix<int> I(unit_matrix<int>(dim));
-         for(auto v: vectors){
-            Vector<int> b(-v);
-            vectorMod3(b);
-            switchTable[0][vector2number[v]] = std::pair<Matrix<int>, Vector<int>>(I, b);
-            supports[0] += vector2number[v];
-         }
-         Vector<int> b(zero_vector<int>(dim));
-         for(int i=1; i<=dim; i++){
-            for(auto v: vectors){
-               Matrix<int> tmp(unit_matrix<int>(i-1) / zero_matrix<int>(dim-i+1, i-1));
-               tmp = tmp | v;
-               tmp = tmp | (zero_matrix<int>(i-1, dim-i+1) / unit_matrix<int>(dim-i+1));
-               // cout << tmp << endl;
-               for(int j=i; j<dim+1; j++){
-                  int test = det(tmp.minor(All, ~scalar2set(j)));
-                  if(test != 0){
-                     Matrix<int> A(tmp.minor(All, ~scalar2set(j)));
-                     A = f3inverse(A);
-                     switchTable[i][vector2number[v]] = std::pair<Matrix<int>, Vector<int>>(A, b);
-                     supports[i] += vector2number[v];
-                     break;
-                  }
-               }
-            }
-         }
-      }
-
-      void print_switchTable(){
-         Integer totalsize = 1;
-         for(auto& row: switchTable){
-            int i = row.first;
-            cout << "Support: {";
-            for(auto& e: supports[i]){
-               cout << e << " ";
-            }
-            cout << "}" << endl;
-            totalsize *= supports[i].size();
-            for(auto& entry: row.second){
-               int j = entry.first;
-               cout << "i: " << i << " - " << number2vector[i] << endl;
-               cout << "j: " << j << " - " << number2vector[j] << endl;
-               Matrix<int>& A(entry.second.first);
-               Vector<int>& b(entry.second.second), tmp(A*number2vector[j]);
-               tmp += b;
-               vectorMod3(tmp);
-               cout << "b: " << b<< endl;
-               cout << "result: " << tmp << endl;
-               cout << A << endl;
-            }
-         }
-         cout << "Total group size: " << totalsize << endl;
-      }
-
-      const std::list<std::pair<Matrix<int>, Vector<int>>> get_switches(Set<int> support, int fixed) const{
-         std::list<std::pair<Matrix<int>, Vector<int>>> result;
-         Set<int> intersection = support * supports[fixed];
-         for(auto& e: intersection){
-            result.push_back(switchTable[fixed][e]);
-         }
-         return result;
-      }
-
-      Cap optimize(const Cap& in, int fixed){
-         if(fixed == dim+1){
-            return Cap(in);
-         }
-         Cap result(in);
-         std::map<int, Set<int>> LTP = in.filterLTP();
-         std::map<int, Set<int>>::const_iterator desired = LTP.begin();
-         std::list<std::pair<Matrix<int>, Vector<int>>> switches = get_switches(desired->second, fixed);
-         while(switches.size() == 0){
-            ++desired;
-            switches = get_switches(desired->second, fixed);
-         }
-         for(const auto& s: switches){
-            optimize(result.mutate(s.first, s.second), fixed+1);
-            multCount++;
-            if(multCount % 1000 == 0){
-               cout << "Took " << multCount << " multiplications so far." << endl;
-            }
-         }
-         return result;
-      }
       
 
    public:
@@ -359,78 +527,99 @@ class Optimizer {
          vectors(md.get_vectors()),
          nonZeroVectors(md.get_nonZeroVectors())
          {
-         init_switchTable();
          Matrix<int> m({{2,1,1},{0,2,0},{0,0,1}});
          f3inverse(m);
-         print_switchTable();
       }
       
-      Cap optimize(const Cap& in){
-         multCount = 0;
-         Cap result = optimize(in, 0);
-         cout << "Took " << multCount << " multiplications." << endl;
-         return result;
-      }
-
-      void optimize2(const Cap& in){
-         Map<Vector<int>, int> tmp;
-         for(const auto& v: nonZeroVectors){
-            tmp[in.hyperplane_indicator(v)]++;
-         }
-         for(const auto& p: tmp){
-            cout << p.first << ": " << p.second << endl;
-         }
-      }
 };
 
 class ReverseSearch {
    private:
-      int dim;
+      int dim, max;
       const MappingData md;
-      const Optimizer opt;
+      Cap currentMax;
+      LRUCache<Set<int>, std::vector<Cap>, pm::hash_func<Set<int>>> neighborCache;
 
-      int nChildren(Cap c){
-         // Get number of neighbors of c
-         return 10;
+      
+      const std::vector<Cap>& get_children(const Cap& c){
+         if(!neighborCache.exist(c.get_content())){
+            neighborCache.put(c.get_content(), c.get_children());
+         }
+         return neighborCache.get(c.get_content());
+      }
+   
+      int nChildren(const Cap& c){
+         // TODO: Cache this.
+         // cout << "nchildren. " << (c.get_content()) << endl;
+         return get_children(c).size();
       }
 
       Cap predecessor(const Cap& c){
-         // Get predecessor of c
-         return Cap(c);
+         // TODO: Cache this.
+         // cout << "pred." << endl;
+         return c.predecessor();
       }
 
       Cap jthChild(const Cap& c, int j){
-         // Get the jth neighbor of c
-         return Cap(c);
+         // TODO: Cache this.
+         // cout << "jthchild. j: " << j << endl;
+         const std::vector<Cap>& neighbors(get_children(c));
+         // cout << (neighbors.size()) << endl;
+         return neighbors[j];
       }
 
       void numbered_predecessor(Cap& c, int& j){
          // Set c to be predecessor and j to be the number of (old) c as child
          // of (new) c.
+         // cout << "Numbered pred." << endl;
+         Cap pred = predecessor(c);
+         const std::vector<Cap>& neighbors(get_children(pred));
+         for(int i=0; i<neighbors.size(); i++){
+            if(neighbors[i] == c){
+               c = pred;
+               j = i;
+               return;
+            }
+         }
       }
 
+
+   public:
+      ReverseSearch(int d): md(d), currentMax(md), neighborCache(5000){
+         max = 0;
+      }
+      
       void generic_reverse_search(Cap start){
          Cap v = start;
          int j=-1, depth=0;
-         while(!((depth==0) && (j==nChildren(v)))){
-            while(j<nChildren(v)){
+         while(!((depth==0) && (j==nChildren(v)-1))){
+            while(j<nChildren(v)-1){
                j++;
                Cap Avj = jthChild(v,j);
                if(predecessor(Avj) == v){
-                  //v = Avj;
-                  j = -1;
-                  depth++;
+                  if(v.get_free_points().size() + v.size() > max){
+                     v = Avj;
+                     if(v.size() % 20 == 0){
+                        cout << "Descending. " << v.size() << endl;
+                     }
+                     j = -1;
+                     depth++;
+                  }
                }
+            }
+            if(v.size() > max){
+               max = v.size();
+               cout << "Max: " << max << endl;
+               currentMax = v;
+               v.print();
             }
             if(depth > 0){
                numbered_predecessor(v, j);
                depth--;
             }
          }
-      }
-
-   public:
-      ReverseSearch(int d): md(d), opt(d, md){
+         cout << "Max was: " << max << endl;
+         currentMax.print();
       }
 };
 
@@ -442,15 +631,46 @@ void do_stuff(int i){
 void do_stuff_matrix(Matrix<int> m){
    int i = m.cols();
    MappingData md(i);
-   Optimizer o(i, md);
-   cout << "Optimizer done." << endl;
+   cout << "MD done." << endl;
    Cap C(md);
    for(const auto& row: rows(m)){
       C.select(row);
    }
+   cout << "Printing" << endl;
    C.print();
-   cout << "Will optimize now." << endl;
-   o.optimize2(C);
+   cout << "Done Printing" << endl;
+   for(int k =0; k<i; k++){
+      cout << k << ": " << C.get_ith_filter(k) << endl;
+   }
+   cout << "This worked." << endl;
+   cout << C.get_permutation() << endl;
+   cout << "Permutation done." << endl;
+   C.print();
+   cout << "Canonicalizing." << endl;
+   C.canonicalize();
+   C.print();
+   cout << "Neighbors: " << (C.get_children().size())<<endl;
+   // for(const auto& n: C.get_children()){
+   //    n.print();
+   // }
+   C.predecessor().print();
+   cout << "Starting RS." << endl;
+   ReverseSearch RS(i);
+   RS.generic_reverse_search(C);
+}
+
+void analyze_cap(Matrix<int> m){
+   int i = m.cols();
+   MappingData md(i);
+   cout << "MD done." << endl;
+   Cap C(md);
+   for(const auto& row: rows(m)){
+      C.select(row);
+   }
+   cout << "Printing" << endl;
+   C.print();
+   C.print_hyperplane_arrangement();
+   
 }
 
 
@@ -462,6 +682,8 @@ void do_stuff_matrix(Matrix<int> m){
 Function4perl(&do_stuff, "do_stuff");
 
 Function4perl(&do_stuff_matrix, "do_stuff_matrix");
+
+Function4perl(&analyze_cap, "analyze_cap");
 
 } // namespace polymake
 } // namespace polytope
