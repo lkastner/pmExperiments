@@ -673,6 +673,72 @@ void analyze_cap(Matrix<int> m){
    
 }
 
+perl::ListReturn mutate_cap(Matrix<int> m){
+   int i = m.cols();
+   MappingData md(i);
+   cout << "MD done." << endl;
+   Cap C(md);
+   for(const auto& row: rows(m)){
+      C.select(row);
+   }
+   cout << "Printing" << endl;
+   C.print();
+   perl::ListReturn result;
+   result << Vector<int>(C.get_content());
+   
+   for(const auto& v: md.get_vectors()){
+      Cap C1 = C.mutate(unit_matrix<int>(i), v);
+      Set<int> check = (C1.get_content() * C.get_content());
+      if(check.size() == 0){
+         result << Vector<int>(v);
+         cout << v << endl;
+      }
+   }
+
+   return result;
+   
+}
+
+bool disjoint_cap(Matrix<int> m, const Array<Vector<int>> shifts){
+   int i = m.cols();
+   MappingData md(i);
+   Cap C(md);
+   for(const auto& row: rows(m)){
+      C.select(row);
+   }
+   perl::ListReturn result;
+   result << Vector<int>(C.get_content());
+   
+   std::list<Set<int>> caps;
+   caps.push_back(C.get_content());
+   for(const auto& v: shifts){
+      Cap C1 = C.mutate(unit_matrix<int>(i), v);
+      Cap C2 = C.mutate(unit_matrix<int>(i), 2*v);
+      for(const auto& pc: caps){
+         Set<int> check1 = (C1.get_content() * pc);
+         Set<int> check2 = (C2.get_content() * pc);
+         if(check1.size() != 0){
+            cout << "Fail: " << v << endl;
+            return false;
+         }
+         if(check2.size() != 0){
+            cout << "Fail: " << (2*v) << endl;
+            return false;
+         }
+      }
+      Set<int> check12 = (C1.get_content() * C2.get_content());
+      if(check12.size() == 0){
+         caps.push_back(C1.get_content());
+         caps.push_back(C2.get_content());
+      } else {
+         cout << "Fail12: " << v << endl;
+         return false;
+      }
+   }
+   return true;
+   
+}
+
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -684,6 +750,10 @@ Function4perl(&do_stuff, "do_stuff");
 Function4perl(&do_stuff_matrix, "do_stuff_matrix");
 
 Function4perl(&analyze_cap, "analyze_cap");
+
+Function4perl(&mutate_cap, "mutate_cap");
+
+Function4perl(&disjoint_cap, "disjoint_cap");
 
 } // namespace polymake
 } // namespace polytope

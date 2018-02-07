@@ -131,7 +131,7 @@ user_function find_transformation_matrix(Matrix, Matrix){
       my $ineqlocpos = new Matrix(grep($_->[0] > 0, @$eqloc));
       my $ineqlocneg = new Matrix(grep($_->[0] < 0, @$eqloc));
       if($ineqlocpos->rows > 0){
-         $ineqlocpos = zero_vector | $ineqlocpos->minor(All, ~[0]);
+         $ineqlocpos = zero_vector($ineqlocneg->rows) | $ineqlocpos->minor(All, ~[0]);
       }
       if($ineqlocneg->rows > 0){
          $ineqlocneg = -zero_vector($ineqlocneg->rows) | $ineqlocneg->minor(All, ~[0]);

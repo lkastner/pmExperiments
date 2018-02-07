@@ -417,6 +417,6 @@ sub twisted_toric_ideal{
       # print $pos-$neg."\n";
       push @out, $pos-$neg;
    }
-   new Ideal(GENERATORS=>new Array<Polynomial<> >(@out));
+   new Ideal(GENERATORS=>\@out);
 
 }
