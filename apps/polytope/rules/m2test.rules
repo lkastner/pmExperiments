@@ -124,7 +124,7 @@ sub polytope_to_m2_dual{
    $result .= m2_matrix("ineqrhs".$name, $ineq->minor(All, [0]));
    $result .= m2_matrix("eqlhs".$name, -$eq->minor(All, ~[0]));
    $result .= m2_matrix("eqrhs".$name, $eq->minor(All, [0]));
-   $result .= $name." = intersection(";
+   $result .= $name." = polyhedronFromHData(";
    $result .= "ineqlhs".$name.", ineqrhs".$name.", ";
    $result .= "eqlhs".$name.", eqrhs".$name.");\n";
    return $result;
