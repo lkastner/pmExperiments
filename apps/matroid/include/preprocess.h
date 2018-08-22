@@ -45,12 +45,12 @@ namespace polymake { namespace matroid{
 
       ListMatrix<SparseVector<Integer> > grep_smaller_elements_from_map(const Vector<Integer>& facetValues, const objmap& reductors){
          ListMatrix< SparseVector<Integer> > smaller(0, conesFacetValues.rows());
-         Entire<objmap>::const_iterator it = entire(reductors);
+         auto it = entire(reductors);
          while (!it.at_end() && -1 == lex_compare(it->first, facetValues)) {
             // cout << "testing " << it->first << " - " << facetValues;
             if (find_in_range_if(entire(attach_operation(it->first,facetValues,operations::gt())),operations::non_zero()).at_end()) {
                // cout << " smaller!!!111elf" << endl;
-               for(Entire< Set< SparseVector<Integer> > >::const_iterator vit = entire(it->second); !vit.at_end(); ++vit){
+               for(auto vit = entire(it->second); !vit.at_end(); ++vit){
                   smaller /= *vit;
                }
             }
@@ -70,8 +70,8 @@ namespace polymake { namespace matroid{
          // Intersect the cones belonging to non-zero entries.
          Vector<Integer> maxval(conesFacetValues.cols());
          Matrix<Integer> fvminor(conesFacetValues.minor(indices(circuit),All));
-         Entire<Cols<Matrix<Integer> > >::const_iterator colit = entire(cols(fvminor));
-         for(Entire<Vector<Integer> >::iterator it=entire(maxval); !it.at_end(); ++it, ++colit) {
+         auto colit = entire(cols(fvminor));
+         for(auto it=entire(maxval); !it.at_end(); ++it, ++colit) {
             *it = accumulate(*colit, operations::max());
          }
          return maxval;

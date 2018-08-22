@@ -110,8 +110,8 @@ public:
       lines = (good_ones.rows() - 1)/2;
       selected = Matrix<int>(0, dim);
       linesThroughPoint = Map<Vector<int>, int>();
-      for(Entire<Rows<Matrix<int> > >::const_iterator g = entire(rows(good_ones)); !g.at_end(); g++) {
-         linesThroughPoint[*g] = lines;
+      for(const auto& g : rows(good_ones)) {
+         linesThroughPoint[g] = lines;
       }
    }
 
@@ -127,13 +127,13 @@ public:
       if(linesThroughPoint[v] == -2){
          return false;
       }
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(linesThroughPoint); !pt.at_end(); ++pt){
-         if(pt->second >= 0){
-            linesThroughPoint[pt->first]--;
+      for(const auto& pt : linesThroughPoint) {
+         if(pt.second >= 0){
+            linesThroughPoint[pt.first]--;
          }
       }
-      for(Entire<Rows<Matrix<int> > >::const_iterator g = entire(rows(selected)); !g.at_end(); g++) {
-         third = get_third_on_line(*g, v);
+      for(const auto& g : rows(selected)) {
+         third = get_third_on_line(g, v);
          if(linesThroughPoint[third] != -2){
             linesThroughPoint[third]++;
          }
@@ -145,9 +145,9 @@ public:
 
    int find_max_val(){
       int result = 0;
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(linesThroughPoint); !pt.at_end(); ++pt){
-         if(pt->second > result){
-            result = pt->second;
+      for(const auto& pt : linesThroughPoint) {
+         if(pt.second > result){
+            result = pt.second;
          }
       }
       return result;
@@ -156,9 +156,9 @@ public:
    Matrix<int> find_best_moves(){
       int currentBestVal = find_max_val();
       Matrix<int> result(0,dim);
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(linesThroughPoint); !pt.at_end(); ++pt){
-         if(pt->second == currentBestVal){
-            result /= pt->first;
+      for(const auto& pt : linesThroughPoint) {
+         if(pt.second == currentBestVal){
+            result /= pt.first;
          }
       }
       return result;
@@ -184,9 +184,9 @@ public:
 
    void update_good_ones(){
       good_ones = Matrix<int>(0, dim);
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(linesThroughPoint); !pt.at_end(); ++pt){
-         if(pt->second > 0){
-            good_ones /= pt->first;
+      for(const auto& pt : linesThroughPoint) {
+         if(pt.second > 0){
+            good_ones /= pt.first;
          }
       }  
    }
@@ -213,8 +213,8 @@ public:
    SetGame(Matrix<int> preselected, Matrix<int> o){
       dim = preselected.cols();
       init(o);
-      for(Entire<Rows<Matrix<int> > >::const_iterator s = entire(rows(preselected)); !s.at_end(); s++) {
-         move_no_update(*s);
+      for(const auto& s : rows(preselected)) {
+         move_no_update(s);
       }
       update_possibles();
    }
@@ -242,8 +242,8 @@ public:
       possibles = get_init_matrix(dim);
       selected = Matrix<int>(0, dim);
       occupation = Map<Vector<int>, int>();
-      for(Entire<Rows<Matrix<int> > >::const_iterator g = entire(rows(possibles)); !g.at_end(); g++) {
-         occupation[*g] = 0;
+      for(const auto& g : rows(possibles)) {
+         occupation[g] = 0;
       }
    }
 
@@ -257,8 +257,8 @@ public:
          return false;
       }
       occupation[v] = -1;
-      for(Entire<Rows<Matrix<int> > >::const_iterator s = entire(rows(selected)); !s.at_end(); s++) {
-         third = get_third_on_line(*s, v);
+      for(const auto& s : rows(selected)) {
+         third = get_third_on_line(s, v);
          // if(occupation[third] == -1){
          //    cout << endl << "Something went wrong! " << third << " - " << *s << " - " << v << endl;
          // }
@@ -285,9 +285,9 @@ public:
 
    int get_min_lines(){
       int result = INT_MAX;
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
-         if(pt->second != -1){
-            result = std::min(result, pt->second);
+      for(const auto& pt : occupation) {
+         if(pt.second != -1){
+            result = std::min(result, pt.second);
          }
       }
       return result;
@@ -295,9 +295,9 @@ public:
    
    int get_max_lines(){
       int result = INT_MIN;
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
-         if(pt->second != -1){
-            result = std::max(result, pt->second);
+      for(const auto& pt : occupation) {
+         if(pt.second != -1){
+            result = std::max(result, pt.second);
          }
       }
       return result;
@@ -305,9 +305,9 @@ public:
    
    int get_total_lines(){
       int result = 0;
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
-         if(pt->second != -1){
-            result += pt->second;
+      for(const auto& pt : occupation) {
+         if(pt.second != -1){
+            result += pt.second;
          }
       }
       return result;
@@ -316,10 +316,10 @@ public:
 
    int get_deviants(int minlines){
       int result = 0;
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
-         if(pt->second != -1){
-            if(pt->second != minlines){
-               result += pt->second == 0 ? 0 : 1;
+      for(const auto& pt : occupation) {
+         if(pt.second != -1){
+            if(pt.second != minlines){
+               result += pt.second == 0 ? 0 : 1;
             }
          }
       }
@@ -409,8 +409,8 @@ public:
       Vector<int> last = selected[index], third;
       selected = selected.minor(~scalar2set(index), All);
       occupation[last] = 0;
-      for(Entire<Rows<Matrix<int> > >::const_iterator s = entire(rows(selected)); !s.at_end(); s++) {
-         third = get_third_on_line(*s, last);
+      for(const auto& s : rows(selected)) {
+         third = get_third_on_line(s, last);
          // if(occupation[third] <= 0){
          //    cout << endl << "Something went wrong undo!" << endl;
          // }
@@ -427,9 +427,9 @@ public:
 
    void update_possibles(){
       possibles = Matrix<int>(0, dim);
-      for(Entire<Map<Vector<int>, int> >::const_iterator pt = entire(occupation); !pt.at_end(); ++pt){
-         if(pt->second == 0){
-            possibles /= pt->first;
+      for(const auto& pt : occupation) {
+         if(pt.second == 0){
+            possibles /= pt.first;
          }
       }
    }
@@ -465,9 +465,9 @@ public:
       currentBest /= possibles[0];
       Vector<int> currentBestVal = monte_carlo_evaluate(possibles[0], tries), test;
       int i=0, total = pts.rows();
-      for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(pts)); !pt.at_end(); pt++) {
+      for(const auto& pt : rows(pts)) {
          cout << "Point no. " << i << " of " << total;
-         test = monte_carlo_evaluate(*pt, tries);
+         test = monte_carlo_evaluate(pt, tries);
          cout << " gives " << test[0] << " - ";
          // if(occupation[*pt] != 0){
          //    cout << endl << "Something went wrong! " << occupation[*pt] << endl;
@@ -476,10 +476,10 @@ public:
             cout << " WINNER!  ";
             currentBestVal = test;
             currentBest = Matrix<int>(0,dim);
-            currentBest /= *pt;
+            currentBest /= pt;
          }
          if(compare_lex(order*currentBestVal, order*test) == 0){
-            currentBest /= *pt;
+            currentBest /= pt;
          }
          cout << std::flush;
          i++;
@@ -525,8 +525,8 @@ public:
       Vector<int> third(3), line(3);
       int i = 0, j, thirdIndex;
       int n = points.rows();
-      for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(points)); !pt.at_end(); pt++) {
-         pointIndices[*pt] = i;
+      for(const auto& pt : rows(points)) {
+         pointIndices[pt] = i;
          i++;
       }
       // cout << "PointIndices ok." << endl;
@@ -569,9 +569,9 @@ public:
       int pointIndex = pointIndices[pt];
       points = points.minor(~scalar2set(find_index_of_pt(pt)), All);
       Matrix<int> keepLines(0,3);
-      for(Entire<Rows<Matrix<int> > >::const_iterator line = entire(rows(lines)); !line.at_end(); line++) {
-         if(!line_contains(*line, pointIndex)){
-            keepLines /= *line;
+      for(const auto& line : rows(lines)) {
+         if(!line_contains(line, pointIndex)){
+            keepLines /= line;
          }
       }
       lines = keepLines;
@@ -592,8 +592,8 @@ public:
 
    int find_index_of_pt(const Vector<int> p){
       int i = 0;
-      for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(points)); !pt.at_end(); pt++) {
-         if(p == *pt){
+      for(const auto& pt : rows(points)) {
+         if(p == pt){
             return i;
          }
          i++;
@@ -618,10 +618,10 @@ int scalp(Vector<int> a, Vector<int> b){
 Matrix<int> points_on_hyperplane(Matrix<int> given, Vector<int> normal, int val){
    int dim = given.cols();
    Matrix<int> result(0,dim);
-   for(Entire<Rows<Matrix<int> > >::const_iterator pt = entire(rows(given)); !pt.at_end(); pt++) {
-      int test = scalp(*pt, normal);
+   for(const auto& pt : rows(given)) {
+      int test = scalp(pt, normal);
       if(test == val){
-         result /= *pt;
+         result /= pt;
       }
    }
    return result;
@@ -653,13 +653,13 @@ perl::ListReturn find_worst_hyperplane(Matrix<int> given){
    hyperplanes = hyperplanes.minor(~scalar2set(0),All);
    Vector<int> hp;
    perl::ListReturn result;
-   for(Entire<Rows<Matrix<int> > >::const_iterator n = entire(rows(hyperplanes)); !n.at_end(); n++) {
+   for(const auto& n : rows(hyperplanes)) {
       for(i=0; i<3; i++){
-         A = points_on_hyperplane(given, *n, i);
-         cout << "Vector: " << *n << " val: " << i << " gives " << A.rows() << endl;
+         A = points_on_hyperplane(given, n, i);
+         cout << "Vector: " << n << " val: " << i << " gives " << A.rows() << endl;
          if(A.rows() < min){
             min = A.rows();
-            hp = *n;
+            hp = n;
             val = i;
          }
       }

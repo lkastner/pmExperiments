@@ -220,8 +220,8 @@ Matrix<Integer> threedim_hb_v1(const Matrix<Integer>& rays, const Matrix<Integer
 
 Integer optimize_upper_slice_bound(const Matrix<Integer>& gens, const Matrix<Integer>& facets){
    Integer max, result(accumulate(facets * gens.row(0), operations::max()));
-   for(Entire<Rows<Matrix<Integer> > >::const_iterator g = entire(rows(gens)); !g.at_end(); g++) {
-      max = accumulate(facets * (*g), operations::max());
+   for(const auto& g : rows(gens)) {
+      max = accumulate(facets * g, operations::max());
       result = result < max ? result : max;
    }
    return result;
@@ -238,13 +238,13 @@ Matrix<Integer> interred(const Matrix<Integer>& gens, const Matrix<Integer>& fac
       reductor = reductor.minor(~scalar2set(0), All);
       keep = Matrix<Integer>(0, gens.rows());
       bad = false;
-      for(Entire<Rows<Matrix<Integer> > >::const_iterator r = entire(rows(reductor)); !r.at_end(); r++) {
-         check = resp_containment(current, *r, facets);
+      for(const auto& r : rows(reductor)) {
+         check = resp_containment(current, r, facets);
          if(check == 1){
             bad = true;
-            keep = keep / *r;
+            keep = keep / r;
          } else if(check == 0){
-            keep = keep / *r;
+            keep = keep / r;
          }
       }
       if(!bad) result = result / current;
@@ -302,13 +302,13 @@ Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, co
 
    reductor = testing.get_facet_hb();
    cout << "Setup done." << endl;
-   for(Entire<Array<Vector<Rational> > >::const_iterator slice = entire(slices); !slice.at_end(); slice++) {
-      height = facet * (*slice);
+   for(const auto& slice : slices) {
+      height = facet * slice;
       // cout << *slice << " at height " << height << endl;
       if(height == 0){
          continue;
       } else {
-         twodimGens = testing.get_gens_of_slice(*slice);
+         twodimGens = testing.get_gens_of_slice(slice);
          twodimGens = reduce(reductor, twodimGens, facets);
          reductor = reductor / twodimGens;
       }
@@ -320,10 +320,10 @@ Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, co
 Matrix<Integer> reduce(const Matrix<Integer>& reductor, const Matrix<Integer>& given, const Matrix<Integer>& facets){
    bool test;
    Matrix<Integer> result(0,reductor.cols());
-   for(Entire<Rows<Matrix<Integer> > >::const_iterator gen = entire(rows(given)); !gen.at_end(); gen++) {
-      test = check_containment(reductor, *gen, facets);
+   for(const auto& gen : rows(given)) {
+      test = check_containment(reductor, gen, facets);
       if(!test){
-         result = result/(Vector<Integer>(*gen));
+         result = result/(Vector<Integer>(gen));
       }
    }
    return result;
@@ -333,8 +333,8 @@ Matrix<Integer> reduce(const Matrix<Integer>& reductor, const Matrix<Integer>& g
 bool check_containment(const Matrix<Integer>& reductor, const Vector<Integer>& a, const Matrix<Integer>& facets){
    Vector<Rational> test;
    Rational min;
-   for(Entire<Rows<Matrix<Integer> > >::const_iterator r = entire(rows(reductor)); !r.at_end(); r++) {
-      test = facets*(a-(*r));
+   for(const auto& r : rows(reductor)) {
+      test = facets*(a-(r));
       // Should just be min(test)
       min = accumulate(test, operations::min());
       if(min >= 0) return true;
@@ -400,11 +400,11 @@ Vector<Rational> get_oneStep_slice(const Matrix<Rational>& rays, const Matrix<Ra
    Rational test;
    int n = rays.cols();
    Vector<Rational> oneStep(n);
-   for(Entire<Rows<Matrix<Rational> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
-      for(Entire<Rows<Matrix<Rational> > >::const_iterator ray = entire(rows(rays)); !ray.at_end(); ray++) {
-         test = (*ray) * (*facet);
+   for(const auto& facet : rows(facets)) {
+      for(const auto& ray : rows(rays)) {
+         test = ray * facet;
          if(test > 0){
-            oneStep += (1/test) * (*ray);
+            oneStep += (1/test) * ray;
          }
       }
    }
@@ -416,21 +416,21 @@ Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, con
    Vector<Rational> result(input), facetVals;
    Rational test, fix;
    Map<Vector<Integer>, Vector<Integer> > facetRay;
-   for(Entire<Rows<Matrix<Integer> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
-      for(Entire<Rows<Matrix<Integer> > >::const_iterator ray = entire(rows(rays)); !ray.at_end(); ray++) {
-         test = (*ray) * (*facet);
+   for(const auto& facet : rows(facets)) {
+      for(const auto& ray : rows(rays)) {
+         test = ray * facet;
          if(test > 0){
-            facetRay[*facet] = *ray;
+            facetRay[facet] = ray;
          } 
       }
    }
    facetVals = facets * input;
-   for(Entire<Rows<Matrix<Integer> > >::const_iterator facet = entire(rows(facets)); !facet.at_end(); facet++) {
-      test = input * (*facet);
+   for(const auto& facet : rows(facets)) {
+      test = input * facet;
       if(denominator(test) != 1){
          //cout << "This is not an int." << endl;
-         fix = (ceil(test) - test) / (facetRay[*facet] * (*facet));
-         result += fix * facetRay[*facet];
+         fix = (ceil(test) - test) / (facetRay[facet] * facet);
+         result += fix * facetRay[facet];
       }
    }
    return result;
@@ -615,7 +615,7 @@ Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
    ntilda = newlast[0];
    qtilda = newlast[1];
    if((i <= ntilda) && (j <= ntilda)){
-      newdcf = dcf.slice(0,size-1);
+      newdcf = dcf.slice(range(0,size-1));
       if(size == 1){
          newdcf = Vector<Integer>(0);
       }

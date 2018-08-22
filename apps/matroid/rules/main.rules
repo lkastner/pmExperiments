@@ -3,11 +3,11 @@ declare property_type Preprocessor : c++ (include => ['polymake/matroid/preproce
    
    method construct(Int, Matrix) : c++;
 
-   method add(SparseVector) : non_const : void : c++;
+   method add(SparseVector) : c++;
 
-   method show() : non_const : void : c++;
+   method show() : c++;
 
-   method interreduce() : non_const : void : c++;
+   method interreduce() : c++;
 
    method give() : c++;
    
