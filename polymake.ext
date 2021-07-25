@@ -5,7 +5,7 @@
 
 # URI is a unique identifier assigned to this extension.
 # This is the only mandatory entry in this file.
-URI file:///home/lars/working_copies/spp1489/polymake
+URI https://github.com/lkastner/pmExperiments
 
 # Below you can extol the features implemented in this extension,
 # put your copyright notice, or just refer to your website

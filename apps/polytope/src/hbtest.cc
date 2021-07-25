@@ -54,7 +54,7 @@ std::pair<Integer, Vector<Integer> > get_canonical_divisor(const Matrix<Integer>
 Matrix<Integer> compute_ext_degrees(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb); 
 Matrix<Integer> compute_generators_of_ei(Integer i, const Vector<Integer>& dcf, const Matrix<Integer>& hb);
 std::pair<Matrix<Integer>, Matrix<Integer> > twodim_standard_form(const Vector<Integer>& gen1, const Vector<Integer>& gen2);
-Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, int i);
+Integer make_matrix_pair(SparseMatrix2x2<Integer>& R, SparseMatrix2x2<Integer>& L, const Vector<Integer>& u, Int i);
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive);
 Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, const Matrix<Integer>& facets, const Vector<Rational> input);
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
@@ -62,12 +62,12 @@ Vector<Rational> get_oneStep_slice(const Matrix<Rational>& rays, const Matrix<Ra
 Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets);
 Vector<Integer> continued_fraction_from_rational(const Rational& r);
 std::pair<Integer, Vector<Integer> > find_index_of_divisor(const Integer& ray0val, const Integer& ray1val, const Integer& n, const Integer& q);
-Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Integer>& rays, const Matrix<Integer>& facets, int facetIndex);
+Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Integer>& rays, const Matrix<Integer>& facets, Int facetIndex);
 Matrix<Integer> threedim_hb_old(const Matrix<Integer>& rays, const Matrix<Integer>& facets);
 Matrix<Integer> threedim_hb_v1(const Matrix<Integer>& rays, const Matrix<Integer>& facets);
 bool check_containment(const Matrix<Integer>& reductor, const Vector<Integer>& a, const Matrix<Integer>& facets);
 Matrix<Integer> reduce(const Matrix<Integer>& reductor, const Matrix<Integer>& given, const Matrix<Integer>& facets);
-int resp_containment(const Vector<Integer>& a, const Vector<Integer>& b, const Matrix<Integer>& facets);
+Int resp_containment(const Vector<Integer>& a, const Vector<Integer>& b, const Matrix<Integer>& facets);
 Matrix<Integer> interred(const Matrix<Integer>& gens, const Matrix<Integer>& facets);
 Integer optimize_upper_slice_bound(const Matrix<Integer>& gens, const Matrix<Integer>& facets);
 
@@ -91,8 +91,8 @@ private:
    Matrix<Integer> projection, generatingRays, twodimFacets, hb;
 
 public:
-   twofacet(const Matrix<Integer>& rays, const Matrix<Integer>& facets, int facetIndex){
-      int rayIndex;
+   twofacet(const Matrix<Integer>& rays, const Matrix<Integer>& facets, Int facetIndex){
+      Int rayIndex;
       facet = facets.row(facetIndex);
       orthBasis = find_orthogonal_lattice_basis(facet);
       for(rayIndex = 0; rayIndex < 3; rayIndex++){
@@ -231,7 +231,7 @@ Integer optimize_upper_slice_bound(const Matrix<Integer>& gens, const Matrix<Int
 Matrix<Integer> interred(const Matrix<Integer>& gens, const Matrix<Integer>& facets){
    Matrix<Integer> result(0, gens.rows()), keep(0, gens.rows()), reductor(gens);
    Vector<Integer> current;
-   int check;
+   Int check;
    bool bad;
    while(0 < reductor.rows()){
       current = reductor.row(0);
@@ -255,7 +255,7 @@ Matrix<Integer> interred(const Matrix<Integer>& gens, const Matrix<Integer>& fac
 }
 
 
-int resp_containment(const Vector<Integer>& a, const Vector<Integer>& b, const Matrix<Integer>& facets){
+Int resp_containment(const Vector<Integer>& a, const Vector<Integer>& b, const Matrix<Integer>& facets){
    // Output:
    // 1   if  a\in b+\sigma
    // -1  if  b\in a+\sigma
@@ -293,7 +293,7 @@ Matrix<Integer> threedim_hb_old(const Matrix<Integer>& rays, const Matrix<Intege
 
 
 
-Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Integer>& rays, const Matrix<Integer>& facets, int facetIndex){
+Matrix<Integer> project_and_lift_3dim(const Array<Vector<Rational> >& slices, const Matrix<Integer>& rays, const Matrix<Integer>& facets, Int facetIndex){
    cout << "Entered pal3dim." << endl;
    twofacet testing(rays, facets, facetIndex);
    Matrix<Integer> twodimGens, reductor;
@@ -370,7 +370,7 @@ Vector<Integer> continued_fraction_from_rational(const Rational& r){
 Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
    Matrix<Rational> prod = facets * (T(rays));
    Rational result(prod(0,0)), temp;
-   int i, j;
+   Int i, j;
    for(i=0; i<prod.rows(); i++){
       result = result > prod(i,0) ? result : prod(i,0);
    }
@@ -386,10 +386,10 @@ Integer find_number_of_steps(const Matrix<Rational>& rays, const Matrix<Rational
 
 
 Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
-   int bound = (int) (find_number_of_steps(rays, facets));
+   Int bound = (Int) (find_number_of_steps(rays, facets));
    Array<Vector<Rational> > result(bound);
    Vector<Rational> oneStep = get_oneStep_slice(rays, facets);
-   for(int i = 0; i < bound; i++){
+   for(Int i = 0; i < bound; i++){
       result[i] = i*oneStep;
    }
    return result;
@@ -398,7 +398,7 @@ Array<Vector<Rational> > cone_to_divisor_slices(const Matrix<Rational>& rays, co
 
 Vector<Rational> get_oneStep_slice(const Matrix<Rational>& rays, const Matrix<Rational>& facets){
    Rational test;
-   int n = rays.cols();
+   Int n = rays.cols();
    Vector<Rational> oneStep(n);
    for(const auto& facet : rows(facets)) {
       for(const auto& ray : rows(rays)) {
@@ -428,7 +428,7 @@ Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, con
    for(const auto& facet : rows(facets)) {
       test = input * facet;
       if(denominator(test) != 1){
-         //cout << "This is not an int." << endl;
+         //cout << "This is not an Int." << endl;
          fix = (ceil(test) - test) / (facetRay[facet] * facet);
          result += fix * facetRay[facet];
       }
@@ -440,7 +440,7 @@ Vector<Rational> find_biggest_contained_divisor(const Matrix<Integer>& rays, con
 std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice_basis(const Vector<Integer>& primitive){
    Integer g;
    Vector<Integer> currentVec(primitive);
-   int i, dim = primitive.size();
+   Int i, dim = primitive.size();
    SparseMatrix<Integer> right = unit_matrix<Integer>(dim), left = unit_matrix<Integer>(dim);
    SparseMatrix2x2<Integer> R, L;
    for(i=1; i<dim; i++){
@@ -457,7 +457,7 @@ std::pair<SparseMatrix<Integer>, SparseMatrix<Integer> > find_orthogonal_lattice
 
 
 
-Integer make_matrix_pair(SparseMatrix2x2<Integer>& L, SparseMatrix2x2<Integer>& R, const Vector<Integer>& u, int i){
+Integer make_matrix_pair(SparseMatrix2x2<Integer>& L, SparseMatrix2x2<Integer>& R, const Vector<Integer>& u, Int i){
    ExtGCD<Integer> gcd = ext_gcd(u[0], u[i]);
    R.i = 0;
    R.j = i;
@@ -593,7 +593,7 @@ std::pair<Integer, Vector<Integer> > adjust_entry(Integer i, const Vector<Intege
 
 Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
    // cout << "Entering recursion." << dcf << " i: " << i << " j: " << j << endl;
-   int size = dcf.size();
+   Int size = dcf.size();
    if(size==0){
       // cout << "Returning empty mat." << endl;
       return Matrix<Integer>(0,2);
@@ -604,7 +604,7 @@ Matrix<Integer> module_generator_recursion(Integer i, Integer j, const Vector<In
 }
 
 Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
-   int size = dcf.size();
+   Int size = dcf.size();
    // cout << "==2 case. dcf: " << dcf << endl;
    Integer n, q, ntilda, qtilda, diff, newi;
    Vector<Integer> last(hb.row(size+1)), newlast(hb.row(size)), newdcf, fix;
@@ -648,7 +648,7 @@ Matrix<Integer> eq2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
 }
 
 Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, const Matrix<Integer>& hb){
-   int size = dcf.size();
+   Int size = dcf.size();
    Integer n, q, ntilda, qtilda, diff, newi, newj;
    Vector<Integer> last(hb.row(size+1)), secondlast(hb.row(size)), newlast, newdcf;
    Matrix<Integer> result, newhb;
@@ -686,7 +686,7 @@ Matrix<Integer> gt2_modgen(Integer i, Integer j, const Vector<Integer>& dcf, con
 }
 
 Matrix<Integer> continued_fraction_to_hilbert_basis(const Vector<Integer>& dcf){
-   int n = dcf.size(), i;
+   Int n = dcf.size(), i;
    Matrix<Integer> hb(n+2, 2);
    hb(0,1) = 1;
    hb(1,0) = 1;

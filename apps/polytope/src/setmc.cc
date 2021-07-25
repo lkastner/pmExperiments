@@ -44,40 +44,40 @@ namespace {
 
 
 
-int EC = 0;
+Int EC = 0;
 
-Matrix<int> get_init_matrix(int dim);
-Vector<int> get_third_on_line(Vector<int> a, Vector<int> b);
-Matrix<int> run_monte_carlo_try(Matrix<int> selected);
-Matrix<int> run_monte_carlo_try_symmetric(Matrix<int> selected, Matrix<int> sym, Vector<int> shift);
-Matrix<int> finish_set(int dim, int tries, perl::OptionSet options);
-Matrix<int> finish_inverse_set(int dim);
-Matrix<int> finish_given_set(Matrix<int> selected, int tries, perl::OptionSet options);
-Matrix<int> finish_given_set_symmetric(Matrix<int> selected, int tries, Matrix<int> A, Vector<int> b, perl::OptionSet options);
-int compare_lex(Vector<int> a, Vector<int> b);
-int scalp(Vector<int> a, Vector<int> b);
-Vector<int> tof3(Vector<int> a);
-Matrix<int> points_on_hyperplane(Matrix<int> given, Vector<int> normal, int val);
-perl::ListReturn find_worst_hyperplane(Matrix<int> given);
+Matrix<Int> get_init_matrix(Int dim);
+Vector<Int> get_third_on_line(Vector<Int> a, Vector<Int> b);
+Matrix<Int> run_monte_carlo_try(Matrix<Int> selected);
+Matrix<Int> run_monte_carlo_try_symmetric(Matrix<Int> selected, Matrix<Int> sym, Vector<Int> shift);
+Matrix<Int> finish_set(Int dim, Int tries, OptionSet options);
+Matrix<Int> finish_inverse_set(Int dim);
+Matrix<Int> finish_given_set(Matrix<Int> selected, Int tries, OptionSet options);
+Matrix<Int> finish_given_set_symmetric(Matrix<Int> selected, Int tries, Matrix<Int> A, Vector<Int> b, OptionSet options);
+Int compare_lex(Vector<Int> a, Vector<Int> b);
+Int scalp(Vector<Int> a, Vector<Int> b);
+Vector<Int> tof3(Vector<Int> a);
+Matrix<Int> points_on_hyperplane(Matrix<Int> given, Vector<Int> normal, Int val);
+ListReturn find_worst_hyperplane(Matrix<Int> given);
 
-void vectorMod3(Vector<int>& b){
-   for(int i=0; i<b.dim(); i++){
+void vectorMod3(Vector<Int>& b){
+   for(Int i=0; i<b.dim(); i++){
       b[i] %= 3;
       b[i] += 3;
       b[i] %= 3;
    }
 }
 
-Vector<int> get_third_on_line(Vector<int> a, Vector<int> b){
-   Vector<int> result = -a-b;
+Vector<Int> get_third_on_line(Vector<Int> a, Vector<Int> b){
+   Vector<Int> result = -a-b;
    vectorMod3(result);
    return result;
 }
 
 
-int compare_lex(Vector<int> a, Vector<int> b){
-   Vector<int> diff = a - b;
-   int i;
+Int compare_lex(Vector<Int> a, Vector<Int> b){
+   Vector<Int> diff = a - b;
+   Int i;
    for(i = 0; i<diff.dim(); i++){
       if(diff[i] < 0){
          return 1;
@@ -94,36 +94,36 @@ int compare_lex(Vector<int> a, Vector<int> b){
 //
 class InverseSetGame{
 private:
-   int dim;
-   Map<Vector<int>, int> linesThroughPoint;
-   Matrix<int> selected, good_ones;
+   Int dim;
+   Map<Vector<Int>, Int> linesThroughPoint;
+   Matrix<Int> selected, good_ones;
 
 public:
-   InverseSetGame(int n){
+   InverseSetGame(Int n){
       dim = n;
       init();
    }
 
    void init() {
-      int lines;
+      Int lines;
       good_ones = get_init_matrix(dim);
       lines = (good_ones.rows() - 1)/2;
-      selected = Matrix<int>(0, dim);
-      linesThroughPoint = Map<Vector<int>, int>();
+      selected = Matrix<Int>(0, dim);
+      linesThroughPoint = Map<Vector<Int>, Int>();
       for(const auto& g : rows(good_ones)) {
          linesThroughPoint[g] = lines;
       }
    }
 
-   bool move(Vector<int> v){
+   bool move(Vector<Int> v){
       bool result = move_no_update(v);
       if(!result){ return result;}
       update_good_ones();
       return result;
    }
 
-   bool move_no_update(Vector<int> v){
-      Vector<int> third;
+   bool move_no_update(Vector<Int> v){
+      Vector<Int> third;
       if(linesThroughPoint[v] == -2){
          return false;
       }
@@ -143,8 +143,8 @@ public:
       return true;
    }
 
-   int find_max_val(){
-      int result = 0;
+   Int find_max_val(){
+      Int result = 0;
       for(const auto& pt : linesThroughPoint) {
          if(pt.second > result){
             result = pt.second;
@@ -153,9 +153,9 @@ public:
       return result;
    }
 
-   Matrix<int> find_best_moves(){
-      int currentBestVal = find_max_val();
-      Matrix<int> result(0,dim);
+   Matrix<Int> find_best_moves(){
+      Int currentBestVal = find_max_val();
+      Matrix<Int> result(0,dim);
       for(const auto& pt : linesThroughPoint) {
          if(pt.second == currentBestVal){
             result /= pt.first;
@@ -165,17 +165,17 @@ public:
    }
 
    bool random_best_move(){
-      Matrix<int> possibles = find_best_moves();
-      int index = rand() % possibles.rows();
+      Matrix<Int> possibles = find_best_moves();
+      Int index = rand() % possibles.rows();
       return move(possibles[index]);
    }
    
    bool random_move(){
-      int index = rand() % good_ones.rows();
+      Int index = rand() % good_ones.rows();
       return move(good_ones[index]);
    }
 
-   Matrix<int> finish_randomly(){
+   Matrix<Int> finish_randomly(){
       while(find_max_val() > 0){
          random_move();
       }
@@ -183,7 +183,7 @@ public:
    }
 
    void update_good_ones(){
-      good_ones = Matrix<int>(0, dim);
+      good_ones = Matrix<Int>(0, dim);
       for(const auto& pt : linesThroughPoint) {
          if(pt.second > 0){
             good_ones /= pt.first;
@@ -197,20 +197,20 @@ public:
 //
 class SetGame{
 private:
-   int dim, lookahead, targetdev, symmc;
-   Map<Vector<int>, int> occupation;
-   Matrix<int> possibles, selected, order;
+   Int dim, lookahead, targetdev, symmc;
+   Map<Vector<Int>, Int> occupation;
+   Matrix<Int> possibles, selected, order;
    bool symmetric;
-   Matrix<int> symmMat;
-   Vector<int> symmShift;
+   Matrix<Int> symmMat;
+   Vector<Int> symmShift;
 
 public:
-   SetGame(int n, Matrix<int> o){
+   SetGame(Int n, Matrix<Int> o){
       dim = n;
       init(o);
    }
 
-   SetGame(Matrix<int> preselected, Matrix<int> o){
+   SetGame(Matrix<Int> preselected, Matrix<Int> o){
       dim = preselected.cols();
       init(o);
       for(const auto& s : rows(preselected)) {
@@ -219,36 +219,36 @@ public:
       update_possibles();
    }
 
-   void set_symmetry(Matrix<int> sM, Vector<int> b){
+   void set_symmetry(Matrix<Int> sM, Vector<Int> b){
       symmetric = true;
       symmMat = sM;
       symmShift = b;
    }
 
-   void set_target_deviation(int t){
+   void set_target_deviation(Int t){
       targetdev = t;
    }
 
-   Matrix<int> get_selected(){
-      return Matrix<int>(selected);
+   Matrix<Int> get_selected(){
+      return Matrix<Int>(selected);
    }
    
-   void init(Matrix<int> o) {
+   void init(Matrix<Int> o) {
       symmetric = false;
       symmc = 0;
       lookahead = INT_MAX;
       targetdev = -1;
       order = o;
       possibles = get_init_matrix(dim);
-      selected = Matrix<int>(0, dim);
-      occupation = Map<Vector<int>, int>();
+      selected = Matrix<Int>(0, dim);
+      occupation = Map<Vector<Int>, Int>();
       for(const auto& g : rows(possibles)) {
          occupation[g] = 0;
       }
    }
 
-   bool move_no_update(Vector<int> v){
-      Vector<int> third, partner;
+   bool move_no_update(Vector<Int> v){
+      Vector<Int> third, partner;
       if(symmetric){
          partner = tof3(symmMat*v + symmShift);
       }
@@ -283,8 +283,8 @@ public:
       return true;
    }
 
-   int get_min_lines(){
-      int result = INT_MAX;
+   Int get_min_lines(){
+      Int result = INT_MAX;
       for(const auto& pt : occupation) {
          if(pt.second != -1){
             result = std::min(result, pt.second);
@@ -293,8 +293,8 @@ public:
       return result;
    }
    
-   int get_max_lines(){
-      int result = INT_MIN;
+   Int get_max_lines(){
+      Int result = INT_MIN;
       for(const auto& pt : occupation) {
          if(pt.second != -1){
             result = std::max(result, pt.second);
@@ -303,8 +303,8 @@ public:
       return result;
    }
    
-   int get_total_lines(){
-      int result = 0;
+   Int get_total_lines(){
+      Int result = 0;
       for(const auto& pt : occupation) {
          if(pt.second != -1){
             result += pt.second;
@@ -314,8 +314,8 @@ public:
    }
    
 
-   int get_deviants(int minlines){
-      int result = 0;
+   Int get_deviants(Int minlines){
+      Int result = 0;
       for(const auto& pt : occupation) {
          if(pt.second != -1){
             if(pt.second != minlines){
@@ -326,9 +326,9 @@ public:
       return result;
    }
 
-   Vector<int> evaluate_board(){
+   Vector<Int> evaluate_board(){
       // return selected.rows();
-      Vector<int> result(6);
+      Vector<Int> result(6);
       result[0] = selected.rows();
       result[1] = get_min_lines();
       if(targetdev == -1){
@@ -343,7 +343,7 @@ public:
    }
    
    void print(){
-      Vector<int> eval = evaluate_board();
+      Vector<Int> eval = evaluate_board();
       cout << "Current evaluation:" << endl;
       cout << "Selected(0): " << eval[0] << " ";
       cout << "Possibles(5): " << eval[5] << " ";
@@ -355,15 +355,15 @@ public:
    }
 
 
-   Vector<int> monte_carlo_try_no_undo() {
+   Vector<Int> monte_carlo_try_no_undo() {
       bool r = finish_monte_carlo();
       if(!r){ cout << "Something went wrong while playing!" << endl; }
       return evaluate_board();
    }
 
-   Vector<int> monte_carlo_try(){
-      int presize = selected.rows();
-      Vector<int> result = monte_carlo_try_no_undo();
+   Vector<Int> monte_carlo_try(){
+      Int presize = selected.rows();
+      Vector<Int> result = monte_carlo_try_no_undo();
       while(selected.rows() > presize){
          undo_last_no_update();
       }
@@ -371,12 +371,12 @@ public:
       return result;
    }
 
-   void set_lookahead(int n){
+   void set_lookahead(Int n){
       lookahead = n;
    }
 
    bool finish_monte_carlo(){
-      int i = 0;
+      Int i = 0;
       while((possibles.rows() > 0) && (i<lookahead)){
          bool r = random_move();
          if(!r && (EC > 10000)){ 
@@ -391,22 +391,22 @@ public:
    }
 
    bool random_move(){
-      int i = rand() % possibles.rows();
+      Int i = rand() % possibles.rows();
       return move(possibles[i]);
    }
 
-   bool move(Vector<int> v){
+   bool move(Vector<Int> v){
       bool result = move_no_update(v);
       update_possibles();
       return result;
    }
 
    bool undo_last_no_update(){
-      int index = selected.rows() - 1;
+      Int index = selected.rows() - 1;
       if(index == -1){
          return false;
       }
-      Vector<int> last = selected[index], third;
+      Vector<Int> last = selected[index], third;
       selected = selected.minor(~scalar2set(index), All);
       occupation[last] = 0;
       for(const auto& s : rows(selected)) {
@@ -426,7 +426,7 @@ public:
    }
 
    void update_possibles(){
-      possibles = Matrix<int>(0, dim);
+      possibles = Matrix<Int>(0, dim);
       for(const auto& pt : occupation) {
          if(pt.second == 0){
             possibles /= pt.first;
@@ -435,11 +435,11 @@ public:
    }
 
 
-   Vector<int> monte_carlo_evaluate(Vector<int> pt, int tries){
-      int i, presize=selected.rows();
+   Vector<Int> monte_carlo_evaluate(Vector<Int> pt, Int tries){
+      Int i, presize=selected.rows();
       move(pt);
-      Vector<int> result = monte_carlo_try();
-      Vector<int> test;
+      Vector<Int> result = monte_carlo_try();
+      Vector<Int> test;
       for(i=0; i<tries; i++){
          // cout << "Try: " << i << endl;
          // print();
@@ -456,15 +456,15 @@ public:
       return result;
    }
 
-   Vector<int> find_best_move_monte_carlo(int tries){
-      Matrix<int> pts(possibles);
+   Vector<Int> find_best_move_monte_carlo(Int tries){
+      Matrix<Int> pts(possibles);
       // if(pts.rows() == 0){
       //    cout << endl << "I went here, even though there are no possibles." << endl;
       // }
-      Matrix<int> currentBest(0,dim);
+      Matrix<Int> currentBest(0,dim);
       currentBest /= possibles[0];
-      Vector<int> currentBestVal = monte_carlo_evaluate(possibles[0], tries), test;
-      int i=0, total = pts.rows();
+      Vector<Int> currentBestVal = monte_carlo_evaluate(possibles[0], tries), test;
+      Int i=0, total = pts.rows();
       for(const auto& pt : rows(pts)) {
          cout << "Point no. " << i << " of " << total;
          test = monte_carlo_evaluate(pt, tries);
@@ -475,7 +475,7 @@ public:
          if(compare_lex(order*currentBestVal, order*test) == 1){
             cout << " WINNER!  ";
             currentBestVal = test;
-            currentBest = Matrix<int>(0,dim);
+            currentBest = Matrix<Int>(0,dim);
             currentBest /= pt;
          }
          if(compare_lex(order*currentBestVal, order*test) == 0){
@@ -491,9 +491,9 @@ public:
    }
    
 
-   void finish_game_monte_carlo(int tries, bool add){
-      Vector<int> next;
-      int additional = 0;
+   void finish_game_monte_carlo(Int tries, bool add){
+      Vector<Int> next;
+      Int additional = 0;
       while(possibles.rows() > 0){
          print();
          next = find_best_move_monte_carlo(tries + additional);
@@ -512,19 +512,19 @@ public:
 //
 class ReverseSet{
 private:
-   int dim;
-   Map<Vector<int>, int> pointIndices;
-   Matrix<int> points, lines;
+   Int dim;
+   Map<Vector<Int>, Int> pointIndices;
+   Matrix<Int> points, lines;
 
 public:
-   ReverseSet(int d){
+   ReverseSet(Int d){
       dim = d;
       points = get_init_matrix(d);
       // cout << "Points ok." << endl;
       lines(0,3);
-      Vector<int> third(3), line(3);
-      int i = 0, j, thirdIndex;
-      int n = points.rows();
+      Vector<Int> third(3), line(3);
+      Int i = 0, j, thirdIndex;
+      Int n = points.rows();
       for(const auto& pt : rows(points)) {
          pointIndices[pt] = i;
          i++;
@@ -541,34 +541,34 @@ public:
                line[1] = j;
                line[2] = thirdIndex;
                // cout << "Adding line. " << line << endl;
-               lines = lines/Vector<int>(line);
+               lines = lines/Vector<Int>(line);
             }
          }
       }
    }
 
-   ReverseSet(Matrix<int> pts, Map<Vector<int>, int> pI, Matrix<int> l){
+   ReverseSet(Matrix<Int> pts, Map<Vector<Int>, Int> pI, Matrix<Int> l){
       points = pts;
       pointIndices = pI;
       lines = l;
    }
 
-   Matrix<int> get_points(){
+   Matrix<Int> get_points(){
       return points;
    }
 
-   Matrix<int> get_lines(){
+   Matrix<Int> get_lines(){
       return lines;
    }
 
-   Map<Vector<int>, int> get_pt_index_map(){
+   Map<Vector<Int>, Int> get_pt_index_map(){
       return pointIndices;
    }
 
-   void remove_point(const Vector<int> pt){
-      int pointIndex = pointIndices[pt];
+   void remove_point(const Vector<Int> pt){
+      Int pointIndex = pointIndices[pt];
       points = points.minor(~scalar2set(find_index_of_pt(pt)), All);
-      Matrix<int> keepLines(0,3);
+      Matrix<Int> keepLines(0,3);
       for(const auto& line : rows(lines)) {
          if(!line_contains(line, pointIndex)){
             keepLines /= line;
@@ -577,7 +577,7 @@ public:
       lines = keepLines;
    }
 
-   bool line_contains(const Vector<int> line, int index){
+   bool line_contains(const Vector<Int> line, Int index){
       if(line[0] == index){
          return true;
       }
@@ -590,8 +590,8 @@ public:
       return false;
    }
 
-   int find_index_of_pt(const Vector<int> p){
-      int i = 0;
+   Int find_index_of_pt(const Vector<Int> p){
+      Int i = 0;
       for(const auto& pt : rows(points)) {
          if(p == pt){
             return i;
@@ -607,19 +607,19 @@ public:
 //
 
 
-int scalp(Vector<int> a, Vector<int> b){
-   int result = 0, i;
+Int scalp(Vector<Int> a, Vector<Int> b){
+   Int result = 0, i;
    for(i=0; i<a.dim(); i++){
       result += a[i] * b[i];
    }
    return result % 3;
 }
 
-Matrix<int> points_on_hyperplane(Matrix<int> given, Vector<int> normal, int val){
-   int dim = given.cols();
-   Matrix<int> result(0,dim);
+Matrix<Int> points_on_hyperplane(Matrix<Int> given, Vector<Int> normal, Int val){
+   Int dim = given.cols();
+   Matrix<Int> result(0,dim);
    for(const auto& pt : rows(given)) {
-      int test = scalp(pt, normal);
+      Int test = scalp(pt, normal);
       if(test == val){
          result /= pt;
       }
@@ -628,31 +628,31 @@ Matrix<int> points_on_hyperplane(Matrix<int> given, Vector<int> normal, int val)
 }
 
 
-perl::ListReturn get_init_reverse_set(int d){
+ListReturn get_init_reverse_set(Int d){
    ReverseSet rs(d);
-   perl::ListReturn result;
+   ListReturn result;
    result << rs.get_points();
    result << rs.get_pt_index_map();
    result << rs.get_lines();
    return result;
 }
 
-perl::ListReturn remove_pt_from_reverse_set(Matrix<int> pts, Map<Vector<int>, int> pI, Matrix<int> lines, Vector<int> pt){
+ListReturn remove_pt_from_reverse_set(Matrix<Int> pts, Map<Vector<Int>, Int> pI, Matrix<Int> lines, Vector<Int> pt){
    ReverseSet rs(pts, pI, lines);
    rs.remove_point(pt);
-   perl::ListReturn result;
+   ListReturn result;
    result << rs.get_points();
    result << rs.get_pt_index_map();
    result << rs.get_lines();
    return result;
 }
 
-perl::ListReturn find_worst_hyperplane(Matrix<int> given){
-   int dim = given.cols(), i, min = given.rows() + 1, val = 0;
-   Matrix<int> hyperplanes = get_init_matrix(dim), A;
+ListReturn find_worst_hyperplane(Matrix<Int> given){
+   Int dim = given.cols(), i, min = given.rows() + 1, val = 0;
+   Matrix<Int> hyperplanes = get_init_matrix(dim), A;
    hyperplanes = hyperplanes.minor(~scalar2set(0),All);
-   Vector<int> hp;
-   perl::ListReturn result;
+   Vector<Int> hp;
+   ListReturn result;
    for(const auto& n : rows(hyperplanes)) {
       for(i=0; i<3; i++){
          A = points_on_hyperplane(given, n, i);
@@ -668,26 +668,26 @@ perl::ListReturn find_worst_hyperplane(Matrix<int> given){
    return result;
 }
 
-Matrix<int> get_init_matrix(int dim){
+Matrix<Int> get_init_matrix(Int dim){
    if(dim == 1){
-      Matrix<int> result(3,1);
+      Matrix<Int> result(3,1);
       result(0,0) = 0;
       result(1,0) = 1;
       result(2,0) = 2;
       return result;
    }
-   Matrix<int> preresult = get_init_matrix(dim-1);
-   Matrix<int> result = preresult | zero_vector<int>(preresult.rows());
-   result /= preresult | ones_vector<int>(preresult.rows());
-   result /= preresult | (2 * ones_vector<int>(preresult.rows()));
+   Matrix<Int> preresult = get_init_matrix(dim-1);
+   Matrix<Int> result = preresult | zero_vector<Int>(preresult.rows());
+   result /= preresult | ones_vector<Int>(preresult.rows());
+   result /= preresult | (2 * ones_vector<Int>(preresult.rows()));
    return result;
 }
 
    
-Matrix<int> run_monte_carlo_try(Matrix<int> selected){
-   SetGame set = SetGame(selected, unit_matrix<int>(6));
+Matrix<Int> run_monte_carlo_try(Matrix<Int> selected){
+   SetGame set = SetGame(selected, unit_matrix<Int>(6));
    // set.print();
-   Vector<int> result = set.monte_carlo_try_no_undo();
+   Vector<Int> result = set.monte_carlo_try_no_undo();
    if(result[0] == 15){
       cout << "Blip!" << endl;
    }
@@ -695,11 +695,11 @@ Matrix<int> run_monte_carlo_try(Matrix<int> selected){
    return set.get_selected();
 }
 
-Matrix<int> run_monte_carlo_try_symmetric(Matrix<int> selected, Matrix<int> sym, Vector<int> shift){
-   SetGame set = SetGame(selected, unit_matrix<int>(6));
+Matrix<Int> run_monte_carlo_try_symmetric(Matrix<Int> selected, Matrix<Int> sym, Vector<Int> shift){
+   SetGame set = SetGame(selected, unit_matrix<Int>(6));
    set.set_symmetry(sym, shift);
    // set.print();
-   Vector<int> result = set.monte_carlo_try_no_undo();
+   Vector<Int> result = set.monte_carlo_try_no_undo();
    if(result[0] == 15){
       cout << "Blip!" << endl;
    }
@@ -707,10 +707,10 @@ Matrix<int> run_monte_carlo_try_symmetric(Matrix<int> selected, Matrix<int> sym,
    return set.get_selected();
 }
 
-Matrix<int> finish_given_set(Matrix<int> selected, int tries, perl::OptionSet options){
-   int la = options["lookahead"], t = options["targetdev"];
+Matrix<Int> finish_given_set(Matrix<Int> selected, Int tries, OptionSet options){
+   Int la = options["lookahead"], t = options["targetdev"];
    bool add = options["add"];
-   Matrix<int> order = options["order"];
+   Matrix<Int> order = options["order"];
    SetGame set = SetGame(selected, order);
    set.set_lookahead(la);
    set.set_target_deviation(t);
@@ -718,10 +718,10 @@ Matrix<int> finish_given_set(Matrix<int> selected, int tries, perl::OptionSet op
    return set.get_selected();
 }
 
-Matrix<int> finish_given_set_symmetric(Matrix<int> selected, int tries, Matrix<int> A, Vector<int> b, perl::OptionSet options){
-   int la = options["lookahead"], t = options["targetdev"];
+Matrix<Int> finish_given_set_symmetric(Matrix<Int> selected, Int tries, Matrix<Int> A, Vector<Int> b, OptionSet options){
+   Int la = options["lookahead"], t = options["targetdev"];
    bool add = options["add"];
-   Matrix<int> order = options["order"];
+   Matrix<Int> order = options["order"];
    SetGame set = SetGame(selected, order);
    set.set_symmetry(A,b);
    set.set_lookahead(la);
@@ -730,17 +730,17 @@ Matrix<int> finish_given_set_symmetric(Matrix<int> selected, int tries, Matrix<i
    return set.get_selected();
 }
 
-Matrix<int> finish_set(int dim, int tries, perl::OptionSet options){
-   int i, la = options["lookahead"], t = options["targetdev"];
+Matrix<Int> finish_set(Int dim, Int tries, OptionSet options){
+   Int i, la = options["lookahead"], t = options["targetdev"];
    bool add = options["add"];
-   Matrix<int> order = options["order"];
+   Matrix<Int> order = options["order"];
    SetGame set = SetGame(dim, order);
    set.set_lookahead(la);
    set.set_target_deviation(t);
-   Vector<int> v = zero_vector<int>(dim);
+   Vector<Int> v = zero_vector<Int>(dim);
    set.move_no_update(v);
    for(i=0; i<dim; i++){
-      v = unit_vector<int>(dim, i);
+      v = unit_vector<Int>(dim, i);
       set.move_no_update(v);
    }
    set.update_possibles();
@@ -748,16 +748,16 @@ Matrix<int> finish_set(int dim, int tries, perl::OptionSet options){
    return set.get_selected();
 }
 
-Vector<int> tof3(Vector<int> a){
-   int i;
-   Vector<int> result(a);
+Vector<Int> tof3(Vector<Int> a){
+   Int i;
+   Vector<Int> result(a);
    for(i=0; i<result.dim(); i++){
       result[i] = (result[i]+300) % 3;
    }
    return result;
 }
 
-Matrix<int> finish_inverse_set(int dim){
+Matrix<Int> finish_inverse_set(Int dim){
    InverseSetGame IS(dim);
    return IS.finish_randomly();
 }
