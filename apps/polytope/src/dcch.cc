@@ -195,15 +195,15 @@ class DCCH {
          basis /= positive_hyperplane;
          bool has_next = true;
          while(has_next){
-            cout << "current result: " << result << endl;
-            cout << "points on facet: " << facetPoints << endl;
+            // cout << "current result: " << result << endl;
+            // cout << "points on facet: " << facetPoints << endl;
             next = find_next_basis_vector(result, facet_affine_hull);
-            cout << "next: " << next << endl;
+            // cout << "next: " << next << endl;
             Scalar tilt_factor = find_tilting_factor(result, next);
             result += tilt_factor * next;
             basis /= result;
-            cout << "tilt factor: " << tilt_factor << endl;
-            cout << "new result: " << result << endl;
+            // cout << "tilt factor: " << tilt_factor << endl;
+            // cout << "new result: " << result << endl;
             Set<Int> comp(sequence(0,points.rows()) - facetPoints);
             for(const auto& i : comp){
                if(result * points.row(i) == 0){
@@ -323,7 +323,7 @@ class DCCH {
                   orth_affine_hull.row(j) -= (bottomtop / toptop)*top;
                }
             }
-            cout << "orth_affine_hull:" << endl << orth_affine_hull << endl;
+            // cout << "orth_affine_hull:" << endl << orth_affine_hull << endl;
          }
 
       Matrix<Scalar> dualize(){
@@ -337,7 +337,7 @@ class DCCH {
             logger.log("Above threshold " + std::to_string(threshold));
             logger.descend();
             logger.log("Descended");
-            cout << points << endl;
+            // cout << points << endl;
             // Maybe not compute this?
             dim = rank(points);
             logger.log("Dim is: " + std::to_string(dim));
