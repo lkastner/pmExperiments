@@ -35,7 +35,8 @@ void normalize_facet_vector(Vector<Scalar>& facet){
    Int i = 0;
    while(i<facet.dim() && facet[i] == 0) i++;
    if(i == facet.dim()) throw std::runtime_error("Cannot normalize zero vector!");
-   facet *= 1/facet[i];
+   if(facet[i] > 0) facet *= 1/facet[i];
+   else if(facet[i] < 0) facet *= -1/facet[i];
 }
 
 using polymake::common::primitive;
@@ -136,7 +137,7 @@ class DCCH {
             // Only use positive side.
             if(denom > 0){
                Scalar factor = - (pt*hyp) / denom;
-               if(factor < result) result = factor;
+               if(factor > result) result = factor;
                if(!result_set){
                   result = factor;
                   result_set = true;
@@ -164,6 +165,7 @@ class DCCH {
                result += ((rand() % 10) - 5) * gen;
             }
          }
+         MinMax<Scalar> resultmm(find_min_max(result));
          return result;
       }
       
@@ -193,14 +195,15 @@ class DCCH {
          basis /= positive_hyperplane;
          bool has_next = true;
          while(has_next){
-            // cout << "points on facet: " << facetPoints << endl;
+            cout << "current result: " << result << endl;
+            cout << "points on facet: " << facetPoints << endl;
             next = find_next_basis_vector(result, facet_affine_hull);
-            // cout << "next: " << next << endl;
+            cout << "next: " << next << endl;
             Scalar tilt_factor = find_tilting_factor(result, next);
             result += tilt_factor * next;
             basis /= result;
-            // cout << "tilt factor: " << tilt_factor << endl;
-            // cout << "new result: " << result << endl;
+            cout << "tilt factor: " << tilt_factor << endl;
+            cout << "new result: " << result << endl;
             Set<Int> comp(sequence(0,points.rows()) - facetPoints);
             for(const auto& i : comp){
                if(result * points.row(i) == 0){
@@ -214,32 +217,66 @@ class DCCH {
             if(rank(frFacetPoints) == dim-1) has_next = false;
          }
 
+         
          logger.log("find_facet_hyperplane done");
          normalize_facet_vector(result);
+         logger.log(result);
          return result;
       }
 
       void dualize_facet(const Vector<Scalar>& facet){
          logger.log("dualize_facet");
          logger.log(facet);
-         Set<Int> facetPoints(points_on_facet(facet));
-         Matrix<Scalar> facetFacets;
-         if(facetPoints.size() < threshold){
-            const auto facetFacets_pre = enumerate_facets(points.minor(facetPoints, All), zero_matrix<Scalar>(0, points.cols()), true);
-            facetFacets = facetFacets_pre.first;
-        cout << "facetFacets:" << endl << facetFacets << endl;
-         } else {
-            
-         }
+         Set<Int> facetPointsIndices(points_on_facet(facet));
+         Matrix<Scalar> facetPoints(points.minor(facetPointsIndices, All));
+         DCCH<Scalar> inner(facetPoints, positive_hyperplane, threshold, logger);
+         Matrix<Scalar> facetFacets = inner.dualize();
          for(const auto& ff : rows(facetFacets)){
             Vector<Scalar> tmp(ff);
-            normalize_facet_vector(tmp);
-            queue.push(tmp);
+            queue.push(lift_facet(tmp, facet));
          }
          logger.log("dualize_facet done");
       }
 
-      void lift_facet(
+      Vector<Scalar> lift_facet(const Vector<Scalar>& facetFacet, const Vector<Scalar>& facet){
+         // logger.log("lift_facet");
+         // logger.log(facetFacet);
+         Vector<Scalar> result(facetFacet);
+         for(const auto& row : rows(orth_affine_hull)){
+            // logger.log("Subtract row");
+            // logger.log(Vector<Scalar>(row));
+            Scalar rowval = row*row;
+            if(rowval != 0){
+               result -= ((result*row)/rowval) * row;
+            }
+            // logger.log(result);
+         }
+         // logger.log(result);
+         Scalar factor(0);
+         bool found = false;
+         for(const auto& pt : rows(points)){
+            Scalar fval = pt*facet;
+            if(fval != 0){
+               Scalar check = -(result*pt) / fval;
+               if(!found){
+                  factor = check;
+                  found = true;
+               }
+               else if(check > factor){
+                  factor = check;
+               }
+            }
+         }
+         // logger.log("Factor is: ");
+         // cout << factor << endl;
+         // logger.log("Facet is: ");
+         // logger.log(facet);
+         result += factor*facet;
+         normalize_facet_vector(result);
+         // logger.log(result);
+         // logger.log("lift_facet done");
+         return result;
+      }
 
       void dualize_recursion(){
          logger.log("dualize_recursion");
@@ -251,9 +288,9 @@ class DCCH {
             if(!facets.contains(current)){
                dualize_facet(current);
                facets += current;
-            } else {
-               logger.log("Facet known");
-               logger.log(current);
+            // } else {
+            //    logger.log("Facet known");
+            //    logger.log(current);
             }
          }
          logger.backtrack();
@@ -291,32 +328,46 @@ class DCCH {
 
       Matrix<Scalar> dualize(){
          logger.log("Dualizing");
-         logger.descend();
-         // Maybe not compute this?
-         dim = rank(points);
-         logger.log("Dim is: " + std::to_string(dim));
-         Vector<Scalar> facet_vector;
-         facet_vector = find_facet_hyperplane();
-         queue.push(facet_vector);
-         dualize_recursion();
-         logger.backtrack();
-         return Matrix<Scalar>(facets);
+         Matrix<Scalar> result;
+         if(points.rows() < threshold){
+            logger.log("Below threshold " + std::to_string(threshold) + ", using enumerate_facets");
+            const auto facetData = enumerate_facets(points, zero_matrix<Scalar>(0, points.cols()), true);
+            result = facetData.first;
+         } else {
+            logger.log("Above threshold " + std::to_string(threshold));
+            logger.descend();
+            logger.log("Descended");
+            cout << points << endl;
+            // Maybe not compute this?
+            dim = rank(points);
+            logger.log("Dim is: " + std::to_string(dim));
+            Vector<Scalar> facet_vector;
+            facet_vector = find_facet_hyperplane();
+            queue.push(facet_vector);
+            dualize_recursion();
+            result = Matrix<Scalar>(facets);
+            logger.backtrack();
+         }
+         return result;
       }
 };
 
 } // namespace
 
 template<typename Scalar>
-void dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h){
+Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t){
    DCCH_Logger logger;
-   DCCH<Scalar> Dualizer(P, h, 10, logger);
+   // cout << "Points:" << endl << P << endl;
+   Matrix<Scalar> points(P);
+   DCCH<Scalar> Dualizer(points, h, t, logger);
    Matrix<Scalar> facets = Dualizer.dualize();
    cout << "Facets are:" << endl << facets << endl;
+   return facets;
 }
 
 
 UserFunctionTemplate4perl("# no doc yet",
-                     "dcch<Scalar>(Matrix<type_upgrade<Scalar>>, Vector<type_upgrade<Scalar>>)");
+                     "dcch<Scalar>(Matrix<type_upgrade<Scalar>>, Vector<type_upgrade<Scalar>>, Int)");
 
 } // namespace polytope
 } // namespace polymake
