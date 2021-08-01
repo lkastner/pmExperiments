@@ -227,6 +227,7 @@ class DCCH {
       void dualize_facet(const Vector<Scalar>& facet){
          logger.log("dualize_facet");
          logger.log(facet);
+         // cout << orth_affine_hull << endl;
          Set<Int> facetPointsIndices(points_on_facet(facet));
          Matrix<Scalar> facetPoints(points.minor(facetPointsIndices, All));
          DCCH<Scalar> inner(facetPoints, positive_hyperplane, threshold, logger);
@@ -242,15 +243,6 @@ class DCCH {
          // logger.log("lift_facet");
          // logger.log(facetFacet);
          Vector<Scalar> result(facetFacet);
-         for(const auto& row : rows(orth_affine_hull)){
-            // logger.log("Subtract row");
-            // logger.log(Vector<Scalar>(row));
-            Scalar rowval = row*row;
-            if(rowval != 0){
-               result -= ((result*row)/rowval) * row;
-            }
-            // logger.log(result);
-         }
          // logger.log(result);
          Scalar factor(0);
          bool found = false;
@@ -272,6 +264,15 @@ class DCCH {
          // logger.log("Facet is: ");
          // logger.log(facet);
          result += factor*facet;
+         for(const auto& row : rows(orth_affine_hull)){
+            // logger.log("Subtract row");
+            // logger.log(Vector<Scalar>(row));
+            Scalar rowval = row*row;
+            if(rowval != 0){
+               result -= ((result*row)/rowval) * row;
+            }
+            // logger.log(result);
+         }
          normalize_facet_vector(result);
          // logger.log(result);
          // logger.log("lift_facet done");
@@ -282,7 +283,7 @@ class DCCH {
          logger.log("dualize_recursion");
          logger.descend();
          while(queue.size() != 0){
-            logger.log("Queue size: " + std::to_string(queue.size()));
+            logger.log("Queue size: " + std::to_string(queue.size()) + " (" + std::to_string(points.rows()) + ")");
             Vector<Scalar> current = queue.front();
             queue.pop();
             if(!facets.contains(current)){
