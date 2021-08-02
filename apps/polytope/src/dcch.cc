@@ -44,9 +44,11 @@ using polymake::common::primitive;
 class DCCH_Logger {
    private:
       Int depth;
+      bool active;
 
    public:
       DCCH_Logger() : depth(0) {}
+      DCCH_Logger(bool a) : depth(0), active(a) {}
 
       void descend() {
          depth++;
@@ -63,12 +65,14 @@ class DCCH_Logger {
       }
 
       void log(std::string text) {
+         if(!active) return;
          print_indent();
          cout << text << endl;
       }
 
       template<typename Scalar>
       void log(const Vector<Scalar>& v){
+         if(!active) return;
          print_indent();
          for(const auto& entry : v){
             cout << entry << " ";
@@ -356,19 +360,20 @@ class DCCH {
 } // namespace
 
 template<typename Scalar>
-Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t){
-   DCCH_Logger logger;
+Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t, OptionSet options){
+   const bool verbose = options["verbose"];
+   DCCH_Logger logger(verbose);
    // cout << "Points:" << endl << P << endl;
    Matrix<Scalar> points(P);
    DCCH<Scalar> Dualizer(points, h, t, logger);
    Matrix<Scalar> facets = Dualizer.dualize();
-   cout << "Facets are:" << endl << facets << endl;
+   // cout << "Facets are:" << endl << facets << endl;
    return facets;
 }
 
 
 UserFunctionTemplate4perl("# no doc yet",
-                     "dcch<Scalar>(Matrix<type_upgrade<Scalar>>, Vector<type_upgrade<Scalar>>, Int)");
+                     "dcch<Scalar>(Matrix<type_upgrade<Scalar>>, Vector<type_upgrade<Scalar>>, Int; {verbose=>false})");
 
 } // namespace polytope
 } // namespace polymake
