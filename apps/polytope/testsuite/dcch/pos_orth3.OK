@@ -1,1 +1,12 @@
-{"_ns":{"polymake":["https://polymake.org","4.4"]},"data":[["0","0","1"],["0","1","0"],["1","0","0"]],"_type":"common::Matrix<Rational, NonSymmetric>"}
+{
+  "_canonical": true,
+  "_ns": {
+    "polymake": ["https://polymake.org", "4.4.1"]
+  },
+  "_type": "common::Matrix<Rational, NonSymmetric>",
+  "data": [
+    ["0", "0", "1"],
+    ["0", "1", "0"],
+    ["1", "0", "0"]
+  ]
+}

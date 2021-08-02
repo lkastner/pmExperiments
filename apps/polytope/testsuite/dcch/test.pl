@@ -8,7 +8,13 @@ my $s12 = simplex(12);
 compare_data("simplex12", dcch($s12->VERTICES, unit_vector($s12->CONE_DIM, 0), 11));
 
 my $pos_orth = new Cone(INPUT_RAYS=>[[1,0,0],[0,1,0],[0,0,1]]);
-compare_data("pos_orth0", dcch($pos_orth->VERTICES, new Vector([1,1,1]), 2));
-compare_data("pos_orth1", dcch($pos_orth->VERTICES, new Vector([10,1,1]), 2));
-compare_data("pos_orth2", dcch($pos_orth->VERTICES, new Vector([3,17,8]), 2));
-compare_data("pos_orth3", dcch($pos_orth->VERTICES, new Vector([300,2,50]), 2));
+compare_data("pos_orth0", dcch($pos_orth->RAYS, new Vector([1,1,1]), 2));
+compare_data("pos_orth1", dcch($pos_orth->RAYS, new Vector([10,1,1]), 2));
+compare_data("pos_orth2", dcch($pos_orth->RAYS, new Vector([3,17,8]), 2));
+compare_data("pos_orth3", dcch($pos_orth->RAYS, new Vector([300,2,50]), 2));
+
+foreach my $file(glob("rand_sphere*.poly")){
+   my($prefix) = $file =~ m/(.*)\.poly/;
+   my $P = load($file);
+   compare_data($prefix, dcch($P->VERTICES, unit_vector($P->CONE_DIM, 0), 9));
+}
