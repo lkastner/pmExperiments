@@ -135,7 +135,7 @@ class DCCH {
             tilttmp *= -1;
          }
          bool result_set = false;
-         Scalar result = 0;
+         Scalar result(0);
          for(const auto& pt : rows(points)){
             Scalar denom = pt * tilttmp;
             // Only use positive side.
