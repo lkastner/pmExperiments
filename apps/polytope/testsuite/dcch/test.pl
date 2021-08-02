@@ -16,5 +16,12 @@ compare_data("pos_orth3", dcch($pos_orth->RAYS, new Vector([300,2,50]), 2));
 foreach my $file(glob("rand_sphere*.poly")){
    my($prefix) = $file =~ m/(.*)\.poly/;
    my $P = load($file);
-   compare_data($prefix, dcch($P->VERTICES, unit_vector($P->CONE_DIM, 0), 9));
+   if($prefix !~ m/polar/){
+      compare_data($prefix, dcch($P->VERTICES, unit_vector($P->CONE_DIM, 0), 9));
+   } else {
+      compare_data($prefix, dcch($P->VERTICES, unit_vector($P->CONE_DIM, 0), 50));
+   }
 }
+
+my $icosahedron = icosahedron();
+compare_data("icosahedron", dcch($icosahedron->VERTICES, unit_vector<QuadraticExtension>($icosahedron->CONE_DIM, 0), 11));
