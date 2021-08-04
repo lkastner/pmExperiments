@@ -61,8 +61,8 @@ namespace polymake { namespace matroid{
 
       bool is_superfluous(const SparseVector<Integer>& circuit, const Vector<Integer>& facetValues){
          SparseMatrix<Integer> smallerElements = grep_smaller_elements(facetValues);
-         int rk = rank(smallerElements);
-         int rkExtended = rank(smallerElements/circuit);
+         Int rk = rank(smallerElements);
+         Int rkExtended = rank(smallerElements/circuit);
          return rk==rkExtended;
       }
 
@@ -118,8 +118,8 @@ namespace polymake { namespace matroid{
             while (cit != rows(circuits).end()) {
                SparseVector<Integer> circuit(*cit);
                circuits.delete_row(cit);
-               int rk = rank(smaller/circuits);
-               int rkExtended = rank(smaller/circuits/circuit);
+               Int rk = rank(smaller/circuits);
+               Int rkExtended = rank(smaller/circuits/circuit);
                if(rk != rkExtended){
                   remember[facetValues] += circuit;
                   newSize++;
