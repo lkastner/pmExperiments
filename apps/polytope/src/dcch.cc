@@ -44,11 +44,11 @@ using polymake::common::primitive;
 class DCCH_Logger {
    private:
       Int depth;
-      bool active;
+      Int level;
 
    public:
-      DCCH_Logger() : depth(0) {}
-      DCCH_Logger(bool a) : depth(0), active(a) {}
+      DCCH_Logger() : depth(0), level(0) {}
+      DCCH_Logger(Int a) : depth(0), level(a) {}
 
       void descend() {
          depth++;
@@ -64,15 +64,15 @@ class DCCH_Logger {
          }
       }
 
-      void log(std::string text) {
-         if(!active) return;
+      void log(std::string text, Int l) {
+         if(l>level) return;
          print_indent();
          cout << text << endl;
       }
 
       template<typename Scalar>
-      void log(const Vector<Scalar>& v){
-         if(!active) return;
+      void log(const Vector<Scalar>& v, Int l){
+         if(l>level) return;
          print_indent();
          for(const auto& entry : v){
             cout << entry << " ";
@@ -104,7 +104,7 @@ class DCCH {
 
       
       MinMax<Scalar> find_min_max(const Vector<Scalar>& h){
-         logger.log("find_min_max");
+         logger.log("find_min_max", 3);
          MinMax<Scalar> result;
          result.max = h * points.row(0);
          result.min = h * points.row(0);
@@ -121,13 +121,13 @@ class DCCH {
                result.min_pt = i;
             }
          }
-         logger.log("find_min_max done");
+         logger.log("find_min_max done", 3);
          return result;
       }
 
 
       Scalar find_tilting_factor(const Vector<Scalar>& hyp, const Vector<Scalar>& tilt){
-         logger.log("find_tilting_factor");
+         logger.log("find_tilting_factor", 3);
          // TODO: Why?
          MinMax<Scalar> tiltmm(find_min_max(tilt));
          Vector<Scalar> tilttmp(tilt);
@@ -152,7 +152,7 @@ class DCCH {
          if(tiltmm.max < 0){
             result *= -1;
          }
-         logger.log("find_tilting_factor done");
+         logger.log("find_tilting_factor done", 3);
          return result;
       }
 
@@ -182,7 +182,7 @@ class DCCH {
       }
 
       Vector<Scalar> find_facet_hyperplane() {
-         logger.log("find_facet_hyperplane");
+         logger.log("find_facet_hyperplane", 2);
          Vector<Scalar> result(positive_hyperplane), next;
          Set<Int> facetPoints = points_on_facet(result);
          ListMatrix<Vector<Scalar>> frFacetPoints(0, points.cols());
@@ -222,15 +222,15 @@ class DCCH {
          }
 
          
-         logger.log("find_facet_hyperplane done");
+         logger.log("find_facet_hyperplane done", 2);
          normalize_facet_vector(result);
-         logger.log(result);
+         logger.log(result, 2);
          return result;
       }
 
       void dualize_facet(const Vector<Scalar>& facet){
-         logger.log("dualize_facet");
-         logger.log(facet);
+         logger.log("dualize_facet", 1);
+         logger.log(facet, 1);
          // cout << orth_affine_hull << endl;
          Set<Int> facetPointsIndices(points_on_facet(facet));
          Matrix<Scalar> facetPoints(points.minor(facetPointsIndices, All));
@@ -240,7 +240,7 @@ class DCCH {
             Vector<Scalar> tmp(ff);
             queue.push(lift_facet(tmp, facet));
          }
-         logger.log("dualize_facet done");
+         logger.log("dualize_facet done", 1);
       }
 
       Vector<Scalar> lift_facet(const Vector<Scalar>& facetFacet, const Vector<Scalar>& facet){
@@ -284,7 +284,7 @@ class DCCH {
       }
 
       void dualize_recursion(){
-         logger.log("dualize_recursion");
+         logger.log("dualize_recursion", 0);
          logger.descend();
          while(queue.size() != 0){
             logger.log("Queue size: " + std::to_string(queue.size()) + " (" + std::to_string(points.rows()) + ")");
@@ -299,7 +299,7 @@ class DCCH {
             }
          }
          logger.backtrack();
-         logger.log("dualize_recursion done");
+         logger.log("dualize_recursion done", 0);
       }
 
    public:
@@ -309,7 +309,7 @@ class DCCH {
          threshold(t),
          logger(l)
          {
-            logger.log("Building new dcch");
+            logger.log("Building new dcch (" + std::to_string(pts.rows()) + ")", 0);
             affine_hull = Set<Int>();
             std::string ahs("affine hull: ");
             for(Int i=0; i<pts.rows(); i++){
@@ -319,7 +319,7 @@ class DCCH {
                }
             }
             orth_affine_hull = null_space(points.minor(affine_hull, All));
-            logger.log(ahs);
+            logger.log(ahs, 1);
             for(Int i=0; i<orth_affine_hull.rows(); i++){
                const Vector<Scalar>& top(orth_affine_hull.row(i));
                Scalar toptop = top*top;
@@ -332,20 +332,20 @@ class DCCH {
          }
 
       Matrix<Scalar> dualize(){
-         logger.log("Dualizing");
+         logger.log("Dualizing", 0);
          Matrix<Scalar> result;
          if(points.rows() < threshold){
             logger.log("Below threshold " + std::to_string(threshold) + ", using enumerate_facets");
             const auto facetData = enumerate_facets(points, zero_matrix<Scalar>(0, points.cols()), true);
             result = facetData.first;
          } else {
-            logger.log("Above threshold " + std::to_string(threshold));
+            logger.log("Above threshold " + std::to_string(threshold), 0);
             logger.descend();
-            logger.log("Descended");
+            logger.log("Descended", 1);
             // cout << points << endl;
             // Maybe not compute this?
             dim = rank(points);
-            logger.log("Dim is: " + std::to_string(dim));
+            logger.log("Dim is: " + std::to_string(dim), 0);
             Vector<Scalar> facet_vector;
             facet_vector = find_facet_hyperplane();
             queue.push(facet_vector);
@@ -361,7 +361,7 @@ class DCCH {
 
 template<typename Scalar>
 Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t, OptionSet options){
-   const bool verbose = options["verbose"];
+   const Int verbose = options["verbose"];
    DCCH_Logger logger(verbose);
    // cout << "Points:" << endl << P << endl;
    Matrix<Scalar> points(P);
@@ -373,7 +373,7 @@ Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t, Opt
 
 
 UserFunctionTemplate4perl("# no doc yet",
-                     "dcch<Scalar>(Matrix<type_upgrade<Scalar>>, Vector<type_upgrade<Scalar>>, Int; {verbose=>false})");
+                     "dcch<Scalar>(Matrix<type_upgrade<Scalar>>, Vector<type_upgrade<Scalar>>, Int; {verbose=>0})");
 
 } // namespace polytope
 } // namespace polymake
