@@ -114,7 +114,7 @@ class LiftingStack {
 
       Vector<Scalar> lift_facet(const Vector<Scalar>& facetFacet){
          Vector<Scalar> result(facetFacet);
-         for(Int i=0; i<stack.size(); i++){
+         for(Int i=0; i<(int)stack.size(); i++){
             lift_facet(result, stack.size()-1-i);
          }
          return result;
@@ -370,6 +370,29 @@ class DCCH {
          logger.log("dualize_recursion done", 0);
       }
 
+      void init() {
+         logger.log("Building new dcch (" + std::to_string(points.rows()) + ")", 0);
+         affine_hull = Set<Int>();
+         std::string ahs("affine hull: ");
+         for(Int i=0; i<points.rows(); i++){
+            if(rank(points.minor(affine_hull, All)) < rank(points.minor(affine_hull + i, All))){
+               affine_hull += i;
+               ahs += std::to_string(i) + " ";
+            }
+         }
+         orth_affine_hull = null_space(points.minor(affine_hull, All));
+         logger.log(ahs, 1);
+         for(Int i=0; i<orth_affine_hull.rows(); i++){
+            const Vector<Scalar>& top(orth_affine_hull.row(i));
+            Scalar toptop = top*top;
+            for(Int j=i+1; j<orth_affine_hull.rows(); j++){
+               Scalar bottomtop = orth_affine_hull.row(j)*top;
+               orth_affine_hull.row(j) -= (bottomtop / toptop)*top;
+            }
+         }
+         // cout << "orth_affine_hull:" << endl << orth_affine_hull << endl;
+      }
+
    public:
       DCCH(const Matrix<Scalar>& pts, const Vector<Scalar>& pos_hyp, Int t, DCCH_Logger& l, LiftingStack<Scalar>& ls_in): 
          points(pts),
@@ -378,26 +401,7 @@ class DCCH {
          logger(l),
          ls(ls_in)
          {
-            logger.log("Building new dcch (" + std::to_string(points.rows()) + ")", 0);
-            affine_hull = Set<Int>();
-            std::string ahs("affine hull: ");
-            for(Int i=0; i<pts.rows(); i++){
-               if(rank(pts.minor(affine_hull, All)) < rank(pts.minor(affine_hull + i, All))){
-                  affine_hull += i;
-                  ahs += std::to_string(i) + " ";
-               }
-            }
-            orth_affine_hull = null_space(points.minor(affine_hull, All));
-            logger.log(ahs, 1);
-            for(Int i=0; i<orth_affine_hull.rows(); i++){
-               const Vector<Scalar>& top(orth_affine_hull.row(i));
-               Scalar toptop = top*top;
-               for(Int j=i+1; j<orth_affine_hull.rows(); j++){
-                  Scalar bottomtop = orth_affine_hull.row(j)*top;
-                  orth_affine_hull.row(j) -= (bottomtop / toptop)*top;
-               }
-            }
-            // cout << "orth_affine_hull:" << endl << orth_affine_hull << endl;
+            init();
          }
 
       Matrix<Scalar> dualize(){
