@@ -83,6 +83,68 @@ class DCCH_Logger {
 };
 
 template<typename Scalar>
+void orthogonalize(Vector<Scalar>& result, const Matrix<Scalar>& orth_affine_hull){
+   for(const auto& row : rows(orth_affine_hull)){
+      Scalar rowval = row*row;
+      if(rowval != 0){
+         result -= ((result*row)/rowval) * row;
+      }
+   }
+}
+
+
+template<typename Scalar>
+class LiftingStack {
+   private:
+      using keytype = std::tuple<const Matrix<Scalar>&, const Matrix<Scalar>&, const Vector<Scalar>&>;
+      std::vector<keytype> stack;
+
+   public:
+      LiftingStack() {}
+
+      void push(const Matrix<Scalar>& pts, const Matrix<Scalar>& oah, const Vector<Scalar>& facet){
+         keytype t(pts, oah, facet);
+         stack.push_back(t);
+      }
+
+      void pop() {
+         stack.pop_back();
+      }
+
+
+      Vector<Scalar> lift_facet(const Vector<Scalar>& facetFacet){
+         Vector<Scalar> result(facetFacet);
+         for(Int i=0; i<stack.size(); i++){
+            lift_facet(result, stack.size()-1-i);
+         }
+         return result;
+      }
+      
+      void lift_facet(Vector<Scalar>& result, Int i){
+         const auto& [points, orth_affine_hull, facet] = stack[i];
+         Scalar factor(0);
+         bool found = false;
+         for(const auto& pt : rows(points)){
+            Scalar fval = pt*facet;
+            if(fval != 0){
+               Scalar check = -(result*pt) / fval;
+               if(!found){
+                  factor = check;
+                  found = true;
+               }
+               else if(check > factor){
+                  factor = check;
+               }
+            }
+         }
+         result += factor*facet;
+         orthogonalize(result, orth_affine_hull);
+         normalize_facet_vector(result);
+      }
+
+};
+
+template<typename Scalar>
 struct MinMax {
    public:
       Scalar min, max;
@@ -96,11 +158,13 @@ class DCCH {
       const Vector<Scalar>& positive_hyperplane;
       const Int threshold;
       DCCH_Logger& logger;
+      LiftingStack<Scalar>& ls;
       Int dim;
       Set<Int> affine_hull;
       Matrix<Scalar> orth_affine_hull;
       Set<Vector<Scalar>> facets;
       std::queue<Vector<Scalar>> queue;
+
 
       
       MinMax<Scalar> find_min_max(const Vector<Scalar>& h){
@@ -223,6 +287,8 @@ class DCCH {
 
          
          logger.log("find_facet_hyperplane done", 2);
+         ls.lift_facet(result);
+         orthogonalize(result, orth_affine_hull);
          normalize_facet_vector(result);
          logger.log(result, 2);
          return result;
@@ -234,12 +300,14 @@ class DCCH {
          // cout << orth_affine_hull << endl;
          Set<Int> facetPointsIndices(points_on_facet(facet));
          Matrix<Scalar> facetPoints(points.minor(facetPointsIndices, All));
-         DCCH<Scalar> inner(facetPoints, positive_hyperplane, threshold, logger);
+         DCCH<Scalar> inner(facetPoints, positive_hyperplane, threshold, logger, ls);
          Matrix<Scalar> facetFacets = inner.dualize();
+         ls.push(points, orth_affine_hull, facet);
          for(const auto& ff : rows(facetFacets)){
             Vector<Scalar> tmp(ff);
-            queue.push(lift_facet(tmp, facet));
+            queue.push(ls.lift_facet(tmp));
          }
+         ls.pop();
          logger.log("dualize_facet done", 1);
       }
 
@@ -303,13 +371,14 @@ class DCCH {
       }
 
    public:
-      DCCH(const Matrix<Scalar>& pts, const Vector<Scalar>& pos_hyp, Int t, DCCH_Logger& l): 
+      DCCH(const Matrix<Scalar>& pts, const Vector<Scalar>& pos_hyp, Int t, DCCH_Logger& l, LiftingStack<Scalar>& ls_in): 
          points(pts),
          positive_hyperplane(pos_hyp),
          threshold(t),
-         logger(l)
+         logger(l),
+         ls(ls_in)
          {
-            logger.log("Building new dcch (" + std::to_string(pts.rows()) + ")", 0);
+            logger.log("Building new dcch (" + std::to_string(points.rows()) + ")", 0);
             affine_hull = Set<Int>();
             std::string ahs("affine hull: ");
             for(Int i=0; i<pts.rows(); i++){
@@ -362,11 +431,12 @@ class DCCH {
 template<typename Scalar>
 Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t, OptionSet options){
    const Int verbose = options["verbose"];
-   cout << "Log level is : " << verbose << endl;
+   // cout << "Log level is : " << verbose << endl;
    DCCH_Logger logger(verbose);
+   LiftingStack<Scalar> ls;
    // cout << "Points:" << endl << P << endl;
    Matrix<Scalar> points(P);
-   DCCH<Scalar> Dualizer(points, h, t, logger);
+   DCCH<Scalar> Dualizer(points, h, t, logger, ls);
    Matrix<Scalar> facets = Dualizer.dualize();
    // cout << "Facets are:" << endl << facets << endl;
    return facets;
