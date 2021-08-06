@@ -162,7 +162,7 @@ class DCCH {
       Int dim;
       Set<Int> affine_hull;
       Matrix<Scalar> orth_affine_hull;
-      Set<Vector<Scalar>> facets;
+      Set<Vector<Scalar>> facets, known;
       std::queue<Vector<Scalar>> queue;
 
 
@@ -300,7 +300,7 @@ class DCCH {
          // cout << orth_affine_hull << endl;
          Set<Int> facetPointsIndices(points_on_facet(facet));
          Matrix<Scalar> facetPoints(points.minor(facetPointsIndices, All));
-         DCCH<Scalar> inner(facetPoints, positive_hyperplane, threshold, logger, ls);
+         DCCH<Scalar> inner(facetPoints, positive_hyperplane, threshold, logger, ls, known + facets);
          Matrix<Scalar> facetFacets = inner.dualize();
          ls.push(points, orth_affine_hull, facet);
          for(const auto& ff : rows(facetFacets)){
@@ -358,12 +358,16 @@ class DCCH {
             logger.log("Queue size: " + std::to_string(queue.size()) + " (" + std::to_string(points.rows()) + ")", 0);
             Vector<Scalar> current = queue.front();
             queue.pop();
-            if(!facets.contains(current)){
+            if(!facets.contains(current) && !known.contains(current)){
                dualize_facet(current);
                facets += current;
+               known += current;
             // } else {
             //    logger.log("Facet known");
             //    logger.log(current);
+            }
+            if(known.contains(current) && !facets.contains(current)){
+               logger.log("This facet was known.", 3);
             }
          }
          logger.backtrack();
@@ -403,6 +407,18 @@ class DCCH {
          {
             init();
          }
+      
+      DCCH(const Matrix<Scalar>& pts, const Vector<Scalar>& pos_hyp, Int t, DCCH_Logger& l, LiftingStack<Scalar>& ls_in, const Set<Vector<Scalar>>& known_in): 
+         points(pts),
+         positive_hyperplane(pos_hyp),
+         threshold(t),
+         logger(l),
+         ls(ls_in),
+         known(known_in)
+         {
+            // logger.log("known facets: " + std::to_string(known.size()));
+            init();
+         }
 
       Matrix<Scalar> dualize(){
          logger.log("Dualizing", 0);
@@ -423,7 +439,11 @@ class DCCH {
             facet_vector = find_facet_hyperplane();
             queue.push(facet_vector);
             dualize_recursion();
-            result = Matrix<Scalar>(facets);
+            if(facets.size() > 0){
+               result = Matrix<Scalar>(facets);
+            } else {
+               result = Matrix<Scalar>(0, points.cols());
+            }
             logger.backtrack();
          }
          return result;
