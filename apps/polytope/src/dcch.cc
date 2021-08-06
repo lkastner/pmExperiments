@@ -65,14 +65,14 @@ class DCCH_Logger {
       }
 
       void log(std::string text, Int l) {
-         if(l>level) return;
+         if(l>=level) return;
          print_indent();
          cout << text << endl;
       }
 
       template<typename Scalar>
       void log(const Vector<Scalar>& v, Int l){
-         if(l>level) return;
+         if(l>=level) return;
          print_indent();
          for(const auto& entry : v){
             cout << entry << " ";
@@ -287,7 +287,7 @@ class DCCH {
          logger.log("dualize_recursion", 0);
          logger.descend();
          while(queue.size() != 0){
-            logger.log("Queue size: " + std::to_string(queue.size()) + " (" + std::to_string(points.rows()) + ")");
+            logger.log("Queue size: " + std::to_string(queue.size()) + " (" + std::to_string(points.rows()) + ")", 0);
             Vector<Scalar> current = queue.front();
             queue.pop();
             if(!facets.contains(current)){
@@ -335,7 +335,7 @@ class DCCH {
          logger.log("Dualizing", 0);
          Matrix<Scalar> result;
          if(points.rows() < threshold){
-            logger.log("Below threshold " + std::to_string(threshold) + ", using enumerate_facets");
+            logger.log("Below threshold " + std::to_string(threshold) + ", using enumerate_facets", 0);
             const auto facetData = enumerate_facets(points, zero_matrix<Scalar>(0, points.cols()), true);
             result = facetData.first;
          } else {
@@ -362,6 +362,7 @@ class DCCH {
 template<typename Scalar>
 Matrix<Scalar> dcch(const Matrix<Scalar>& P, const Vector<Scalar>& h, Int t, OptionSet options){
    const Int verbose = options["verbose"];
+   cout << "Log level is : " << verbose << endl;
    DCCH_Logger logger(verbose);
    // cout << "Points:" << endl << P << endl;
    Matrix<Scalar> points(P);
