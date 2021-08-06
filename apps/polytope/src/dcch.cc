@@ -311,45 +311,6 @@ class DCCH {
          logger.log("dualize_facet done", 1);
       }
 
-      Vector<Scalar> lift_facet(const Vector<Scalar>& facetFacet, const Vector<Scalar>& facet){
-         // logger.log("lift_facet");
-         // logger.log(facetFacet);
-         Vector<Scalar> result(facetFacet);
-         // logger.log(result);
-         Scalar factor(0);
-         bool found = false;
-         for(const auto& pt : rows(points)){
-            Scalar fval = pt*facet;
-            if(fval != 0){
-               Scalar check = -(result*pt) / fval;
-               if(!found){
-                  factor = check;
-                  found = true;
-               }
-               else if(check > factor){
-                  factor = check;
-               }
-            }
-         }
-         // logger.log("Factor is: ");
-         // cout << factor << endl;
-         // logger.log("Facet is: ");
-         // logger.log(facet);
-         result += factor*facet;
-         for(const auto& row : rows(orth_affine_hull)){
-            // logger.log("Subtract row");
-            // logger.log(Vector<Scalar>(row));
-            Scalar rowval = row*row;
-            if(rowval != 0){
-               result -= ((result*row)/rowval) * row;
-            }
-            // logger.log(result);
-         }
-         normalize_facet_vector(result);
-         // logger.log(result);
-         // logger.log("lift_facet done");
-         return result;
-      }
 
       void dualize_recursion(){
          logger.log("dualize_recursion", 0);
